@@ -86,6 +86,15 @@ struct v4l2_buffer {
 	__u32			reserved;
 };
 
+struct v4l2_exportbuffer {
+	__u32	type; /* enum v4l2_buf_type */
+	__u32	index;
+	__u32	plane;
+	__u32	flags;
+	__s32	fd;
+	__u32	reserved[11];
+};
+
 #define VIDIOC_REQBUFS		_IOWR('V',  8, struct v4l2_requestbuffers)
 #define VIDIOC_QUERYBUF		_IOWR('V',  9, struct v4l2_buffer)
 #define VIDIOC_QBUF		_IOWR('V', 15, struct v4l2_buffer)

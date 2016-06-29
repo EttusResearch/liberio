@@ -235,6 +235,34 @@ struct usrp_dma_buf *usrp_dma_buf_dequeue(struct usrp_dma_ctx *ctx)
 	return buf;
 }
 
+/*
+ * usrp_dma_buf_export() - Export usrp dma buffer as dmabuf fd
+ * that can be shared between processes
+ * @ctx: context
+ * @buf: buffer
+ * @dmafd: dma file descriptor output
+ */
+int usrp_dma_buf_export(struct usrp_dma_ctx *ctx, struct usrp_dma_buf *buf,
+			int *dmafd)
+{
+	struct v4l2_exportbuffer breq;
+	int err;
+
+	memset(&breq, 0, sizeof(breq));
+	breq.type = __to_buf_type(ctx);
+	breq.index = buf->index;
+
+	err = __usrp_dma_ioctl(ctx->fd, VIDIOC_EXPBUF, &breq);
+	if (err) {
+		fprintf(stderr, "failed to export buffer\n");
+		return err;
+	}
+
+	*dmafd = breq.fd;
+
+	return 0;
+}
+
 int usrp_dma_ctx_start_streaming(struct usrp_dma_ctx *ctx)
 {
 	enum v4l2_buf_type type = __to_buf_type(ctx);
