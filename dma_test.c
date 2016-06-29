@@ -12,8 +12,8 @@
 #include "dma.h"
 
 #define NBUFS 32
-//#define NITER 10000000
-#define NITER 10
+#define NITER 1000000
+//#define NITER 10
 
 static uint64_t get_time(void)
 {
@@ -57,6 +57,7 @@ int main(int argc, char *argv[])
 		goto out_free;
 	}
 
+	/* queue up some buffers */
 	for (size_t i = 0; i < ctx->nbufs; i++) {
 		fill_buf(ctx->bufs + i, i);
 		err = usrp_dma_buf_enqueue(ctx, ctx->bufs + i);
@@ -84,7 +85,7 @@ int main(int argc, char *argv[])
 			goto out_free;
 		}
 
-		fill_buf(buf, i);
+		//fill_buf(buf, i);
 
 		err = usrp_dma_buf_enqueue(ctx, buf);
 		if (err) {
@@ -95,15 +96,16 @@ int main(int argc, char *argv[])
 
 	end = get_time();
 
+	printf("-- Stopping streaming\n");
 	err = usrp_dma_ctx_stop_streaming(ctx);
 	if (err) {
-		fprintf(stderr, "failed to start streaming\n");
+		fprintf(stderr, "failed to stop streaming\n");
 		goto out_free;
 	}
 
 	usrp_dma_ctx_put(ctx);
 
-	printf("Took %llu ns per loop\n", (end - start) / NITER);
+	printf("-- Took %llu ns per loop\n", (end - start) / NITER);
 
 	return 0;
 

@@ -13,7 +13,7 @@
 #include "crc32.h"
 
 #define NBUFS 32
-#define NITER 1
+#define NITER 64
 
 static void fill_buf(struct usrp_dma_buf *buf, uint64_t val)
 {
@@ -35,7 +35,7 @@ static void check_buf(struct usrp_dma_buf *buf)
 	uint32_t *vals = buf->mem;
 	uint32_t crc;
 
-	printf("-- Got buffer@%zu\n", buf->index);
+	printf("-- Got buffer idx %zu\n", buf->index);
 	crc = crc32(0, buf->mem, ((buf->len / 4) - sizeof(*vals)));
 
 	if (crc == vals[(buf->len - 1) / 4])
@@ -83,6 +83,7 @@ int main(int argc, char *argv[])
 			goto out_free_rx;
 		}
 	}
+
 	printf("-- Enqueued rx buffers ...\n");
 
 	/* start streaming ... */
@@ -114,12 +115,14 @@ int main(int argc, char *argv[])
 			buf = tx_ctx->bufs + i;
 		}
 
-		fill_buf(buf, 0xace0b000);
+		fill_buf(buf, 0xace0ba5e);
 
-		err = usrp_dma_buf_enqueue(tx_ctx, buf);
-		if (err) {
-			fprintf(stderr, "failed to put TX buffer\n");
-			goto out_stop_streaming;
+		if (i < NITER - 1) {
+			err = usrp_dma_buf_enqueue(tx_ctx, buf);
+			if (err) {
+				fprintf(stderr, "failed to put TX buffer\n");
+				goto out_stop_streaming;
+			}
 		}
 	}
 
@@ -134,17 +137,20 @@ int main(int argc, char *argv[])
 
 		check_buf(buf);
 
-		/*
-		err = usrp_dma_buf_enqueue(rx_ctx, buf);
-		if (err) {
-			fprintf(stderr, "failed to put RX buffer\n");
-			goto out_stop_streaming;
+		if (i < NITER - 1) {
+			err = usrp_dma_buf_enqueue(rx_ctx, buf);
+			if (err) {
+				fprintf(stderr, "failed to put RX buffer\n");
+				goto out_stop_streaming;
+			}
 		}
-		*/
 	}
 
 	usrp_dma_ctx_stop_streaming(tx_ctx);
 	usrp_dma_ctx_stop_streaming(rx_ctx);
+
+	usrp_dma_ctx_put(rx_ctx);
+	usrp_dma_ctx_put(tx_ctx);
 
 	return 0;
 

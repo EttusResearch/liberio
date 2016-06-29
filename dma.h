@@ -26,7 +26,7 @@ struct usrp_dma_ctx {
 };
 
 struct usrp_dma_ctx *usrp_dma_ctx_alloc(const char *file,
-					enum usrp_dma_direction dir);
+					const enum usrp_dma_direction dir);
 
 static inline void usrp_dma_ctx_put(struct usrp_dma_ctx *ctx)
 {
