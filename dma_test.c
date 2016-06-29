@@ -57,16 +57,6 @@ int main(int argc, char *argv[])
 		goto out_free;
 	}
 
-	/* queue up some buffers */
-	for (size_t i = 0; i < ctx->nbufs; i++) {
-		fill_buf(ctx->bufs + i, i);
-		err = usrp_dma_buf_enqueue(ctx, ctx->bufs + i);
-		if (err) {
-			fprintf(stderr, "failed to get buffer\n");
-			goto out_free;
-		}
-	}
-
 	printf("-- Starting streaming\n");
 	err = usrp_dma_ctx_start_streaming(ctx);
 	if (err) {
@@ -79,10 +69,16 @@ int main(int argc, char *argv[])
 	for (size_t i = 0; i < NITER; ++i) {
 		struct usrp_dma_buf *buf;
 
-		buf = usrp_dma_buf_dequeue(ctx);
-		if (!buf) {
-			fprintf(stderr, "failed to get buffer\n");
-			goto out_free;
+		/* buffers start out in dequeued state,
+		 * so first ctx->nbufs times we don't need to deq */
+		if (i >= ctx->nbufs) {
+			buf = usrp_dma_buf_dequeue(ctx);
+			if (!buf) {
+				fprintf(stderr, "failed to get buffer\n");
+				goto out_free;
+			}
+		} else {
+			buf = ctx->bufs + i;
 		}
 
 		//fill_buf(buf, i);
