@@ -48,6 +48,7 @@ static void check_buf(struct usrp_dma_buf *buf)
 
 struct thread_args {
 	struct usrp_dma_ctx *ctx;
+	pthread_barrier_t *barr;
 	long tid;
 };
 
@@ -71,6 +72,8 @@ void *rx_thread(void *args)
 			goto out_free;
 		}
 	}
+
+	pthread_barrier_wait(targs->barr);
 
 	err = usrp_dma_ctx_start_streaming(rx_ctx);
 	if (err) {
@@ -122,6 +125,8 @@ void *tx_thread(void *args)
 		goto out_free;
 	}
 
+	pthread_barrier_wait(targs->barr);
+
 	for (size_t i = 0; i < NITER; ++i) {
 		struct usrp_dma_buf *buf;
 
@@ -158,14 +163,19 @@ int main(int argc, char *argv[])
 	pthread_t threads[2];
 	void *status;
 	struct thread_args args[2];
+	pthread_barrier_t barr;
+
+	pthread_barrier_init(&barr, NULL, 2);
 
 	args[0].ctx = usrp_dma_ctx_alloc("/dev/tx-dma", TX);
 	if (!args[0].ctx)
 		return EXIT_FAILURE;
+	args[0].barr = &barr;
 
 	args[1].ctx = usrp_dma_ctx_alloc("/dev/rx-dma", RX);
 	if (!args[1].ctx)
 		goto out_err_rx;
+	args[1].barr = &barr;
 
 	/* grab ref before handing off ... */
 	usrp_dma_ctx_get(args[0].ctx);
