@@ -10,10 +10,12 @@
 
 #include "v4l2-stuff.h"
 #include "dma.h"
+#include "util.h"
 
 #define NBUFS 32
-#define NITER 1000000
+#define NITER 125000
 //#define NITER 10
+
 
 static uint64_t get_time(void)
 {
@@ -46,6 +48,7 @@ int main(int argc, char *argv[])
 	int fd;
 	int err = 0;
 	uint64_t start, end;
+	uint64_t transmitted;
 
 	ctx = usrp_dma_ctx_alloc("/dev/tx-dma", TX);
 	if (!ctx)
@@ -64,6 +67,7 @@ int main(int argc, char *argv[])
 		goto out_free;
 	}
 
+	transmitted = 0;
 	start = get_time();
 
 	for (size_t i = 0; i < NITER; ++i) {
@@ -82,6 +86,7 @@ int main(int argc, char *argv[])
 		}
 
 		//fill_buf(buf, i);
+		transmitted += buf->valid_bytes;
 
 		err = usrp_dma_buf_enqueue(ctx, buf);
 		if (err) {
@@ -101,12 +106,15 @@ int main(int argc, char *argv[])
 
 	usrp_dma_ctx_put(ctx);
 
-	printf("-- Took %llu ns per loop\n", (end - start) / NITER);
+	//printf("-- Took %llu ns per loop\n", (end - start) / NITER);
+	printf("-- Transmitted %llu bytes in %llu ns -> %f MB/s\n",
+	       transmitted, (end - start), ((double) transmitted / (double) (end-start) * 1e9) / 1024.0 / 1024.0);
 
 	return 0;
 
 out_free:
 out_close:
+	usrp_dma_ctx_stop_streaming(ctx);
 	usrp_dma_ctx_put(ctx);
 
 	return err;
