@@ -16,6 +16,8 @@
 
 #include "v4l2-stuff.h"
 #include "dma.h"
+#include "util.h"
+#include "log.h"
 
 #include <stdio.h>
 #include <fcntl.h>
@@ -25,8 +27,16 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <sys/socket.h>
 
 #define RETRIES 100
+#define TIMEOUT 1
+#define V4L2_MAX_FRAMES 128
+
+void usrp_dma_init(void)
+{
+	log_init(3, "usrp_dma");
+}
 
 static inline enum v4l2_buf_type __to_buf_type(struct usrp_dma_ctx *ctx)
 {
@@ -126,7 +136,8 @@ static int __usrp_dma_buf_init(struct usrp_dma_ctx *ctx,
 
 	buf->index = index;
 	buf->len = breq.length;
-	buf->valid_bytes = 4096;
+	/* TODO: don't make this 4096 */
+	buf->valid_bytes = buf->len;
 
 	buf->mem = mmap(NULL, breq.length,
 			PROT_READ | PROT_WRITE,
@@ -149,6 +160,12 @@ int usrp_dma_request_buffers(struct usrp_dma_ctx *ctx, size_t num_buffers)
 	enum v4l2_buf_type type = (ctx->dir == TX) ?
 		V4L2_BUF_TYPE_VIDEO_OUTPUT :
 		V4L2_BUF_TYPE_VIDEO_CAPTURE;
+
+	if (num_buffers > V4L2_MAX_FRAMES) {
+		log_warn(__func__, "tried to allocate %u num_buffers, \
+			 max is %u\n", V4L2_MAX_FRAMES);
+		num_buffers = V4L2_MAX_FRAMES;
+	}
 
 	memset(&req, 0, sizeof(req));
 	req.type = type;
@@ -197,11 +214,15 @@ int usrp_dma_buf_enqueue(struct usrp_dma_ctx *ctx, struct usrp_dma_buf *buf)
 	fd_set fds;
 	struct timeval tv;
 
+	//printf("%s: index=%u\n", __func__, buf->index);
+	//log_warn("index=%u", __func__, buf->index);
+
 	memset(&breq, 0, sizeof(breq));
 	breq.type = __to_buf_type(ctx);
 	breq.memory = V4L2_MEMORY_MMAP;
 	breq.index = buf->index;
-	breq.bytesused = buf->valid_bytes;
+	if (ctx->dir == TX)
+		breq.bytesused = buf->valid_bytes;
 
 	return __usrp_dma_ioctl(ctx->fd, VIDIOC_QBUF, &breq);
 }
@@ -217,8 +238,8 @@ struct usrp_dma_buf *usrp_dma_buf_dequeue(struct usrp_dma_ctx *ctx)
 	FD_ZERO(&fds);
 	FD_SET(ctx->fd, &fds);
 
-	tv.tv_sec = 2;
-	tv.tv_usec = 0;
+	tv.tv_sec = 0;
+	tv.tv_usec = 250000;
 
 	//printf("-- Waiting for buffer (%s)\n", ctx->dir == TX ? "TX" : "RX");
 	if (ctx->dir == RX)
@@ -227,7 +248,7 @@ struct usrp_dma_buf *usrp_dma_buf_dequeue(struct usrp_dma_ctx *ctx)
 		err = select(ctx->fd + 1, NULL, &fds, NULL, &tv);
 
 	if (!err) {
-		fprintf(stderr, "select timeout\n");
+		//fprintf(stderr, "select timeout\n");
 		return NULL;
 	}
 
@@ -243,6 +264,9 @@ struct usrp_dma_buf *usrp_dma_buf_dequeue(struct usrp_dma_ctx *ctx)
 	err = __usrp_dma_ioctl(ctx->fd, VIDIOC_DQBUF, &breq);
 	if (err)
 		return NULL;
+
+	//printf("%s: index=%u\n", __func__, breq.index);
+	//log_warn("index=%u", __func__, buf->index);
 
 	buf = ctx->bufs + breq.index;
 	if (ctx->dir == RX)
@@ -277,6 +301,75 @@ int usrp_dma_buf_export(struct usrp_dma_ctx *ctx, struct usrp_dma_buf *buf,
 	*dmafd = breq.fd;
 
 	return 0;
+}
+
+int usrp_dma_buf_send_fd(int sockfd, int fd)
+{
+	struct msghdr message;
+	struct iovec iov[1];
+	struct cmsghdr *control_message = NULL;
+	char ctrl_buf[CMSG_SPACE(sizeof(int))];
+	char data[1];
+
+	memset(&message, 0, sizeof(struct msghdr));
+	memset(ctrl_buf, 0, CMSG_SPACE(sizeof(int)));
+
+	data[0] = '!';
+	iov[0].iov_base = data;
+	iov[0].iov_len = sizeof(data);
+
+	message.msg_name = NULL;
+	message.msg_namelen = 0;
+	message.msg_iov = iov;
+	message.msg_iovlen = 1;
+	message.msg_controllen =  CMSG_SPACE(sizeof(int));
+	message.msg_control = ctrl_buf;
+
+	control_message = CMSG_FIRSTHDR(&message);
+	control_message->cmsg_level = SOL_SOCKET;
+	control_message->cmsg_type = SCM_RIGHTS;
+	control_message->cmsg_len = CMSG_LEN(sizeof(int));
+
+	*((int *) CMSG_DATA(control_message)) = fd;
+
+	return sendmsg(sockfd, &message, 0);
+}
+
+int usrp_dma_buf_recv_fd(int sockfd)
+{
+	int sent_fd;
+	struct msghdr message;
+	struct iovec iov[1];
+	struct cmsghdr *cmsg = NULL;
+	char ctrl_buf[CMSG_SPACE(sizeof(int))];
+	char data[1];
+	int res;
+
+	memset(&message, 0, sizeof(struct msghdr));
+	memset(ctrl_buf, 0, CMSG_SPACE(sizeof(int)));
+
+	/* For the dummy data */
+	iov[0].iov_base = data;
+	iov[0].iov_len = sizeof(data);
+
+	message.msg_name = NULL;
+	message.msg_namelen = 0;
+	message.msg_control = ctrl_buf;
+	message.msg_controllen = CMSG_SPACE(sizeof(int));
+	message.msg_iov = iov;
+	message.msg_iovlen = 1;
+
+	if ((res = recvmsg(sockfd, &message, 0)) <= 0)
+		return res;
+
+	/* Iterate through header to find if there is a file
+	 * descriptor */
+	for (cmsg = CMSG_FIRSTHDR(&message); cmsg != NULL;
+	     cmsg = CMSG_NXTHDR(&message,cmsg))
+		if ((cmsg->cmsg_level == SOL_SOCKET) && (cmsg->cmsg_type == SCM_RIGHTS))
+			return *((int*)CMSG_DATA(cmsg));
+
+	return -EINVAL;
 }
 
 int usrp_dma_ctx_start_streaming(struct usrp_dma_ctx *ctx)

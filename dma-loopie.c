@@ -12,8 +12,8 @@
 #include "dma.h"
 #include "crc32.h"
 
-#define NBUFS 32
-#define NITER 64
+#define NBUFS 128
+#define NITER 1
 
 static void fill_buf(struct usrp_dma_buf *buf, uint64_t val)
 {
@@ -76,6 +76,7 @@ int main(int argc, char *argv[])
 
 
 	/* queue up buffers */
+	/*
 	for (size_t i = 0; i < rx_ctx->nbufs; i++) {
 		err = usrp_dma_buf_enqueue(rx_ctx, rx_ctx->bufs + i);
 		if (err) {
@@ -83,8 +84,9 @@ int main(int argc, char *argv[])
 			goto out_free_rx;
 		}
 	}
+	*/
 
-	printf("-- Enqueued rx buffers ...\n");
+	//printf("-- Enqueued rx buffers ...\n");
 
 	/* start streaming ... */
 	err = usrp_dma_ctx_start_streaming(rx_ctx);
