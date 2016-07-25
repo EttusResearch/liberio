@@ -125,7 +125,7 @@ static int __usrp_dma_buf_init(struct usrp_dma_ctx *ctx,
 	breq.index = index;
 	breq.memory = USRP_MEMORY_MMAP;
 
-	err = __usrp_dma_ioctl(ctx->fd, VIDIOC_QUERYBUF, &breq);
+	err = __usrp_dma_ioctl(ctx->fd, USRPIOC_QUERYBUF, &breq);
 	if (err) {
 		log_warn(__func__,
 			"failed to create usrp_dma_buf for index %u", index);
@@ -165,10 +165,10 @@ int usrp_dma_request_buffers(struct usrp_dma_ctx *ctx, size_t num_buffers)
 
 	memset(&req, 0, sizeof(req));
 	req.type = type;
-	req.memory = USRP_MEMORY_MMAP;
+	req.memory = ctx->mem_type;
 	req.count = num_buffers;
 
-	err = __usrp_dma_ioctl(ctx->fd, VIDIOC_REQBUFS, &req);
+	err = __usrp_dma_ioctl(ctx->fd, USRPIOC_REQBUFS, &req);
 	if (err) {
 		log_crit(__func__, "failed to request buffers (num_buffers was %u)", num_buffers);
 		return err;
@@ -217,7 +217,7 @@ int usrp_dma_buf_enqueue(struct usrp_dma_ctx *ctx, struct usrp_dma_buf *buf)
 	if (ctx->dir == TX)
 		breq.bytesused = buf->valid_bytes;
 
-	return __usrp_dma_ioctl(ctx->fd, VIDIOC_QBUF, &breq);
+	return __usrp_dma_ioctl(ctx->fd, USRPIOC_QBUF, &breq);
 }
 
 struct usrp_dma_buf *usrp_dma_buf_dequeue(struct usrp_dma_ctx *ctx)
@@ -253,7 +253,7 @@ struct usrp_dma_buf *usrp_dma_buf_dequeue(struct usrp_dma_ctx *ctx)
 	breq.type = __to_buf_type(ctx);
 	breq.memory = USRP_MEMORY_MMAP;
 
-	err = __usrp_dma_ioctl(ctx->fd, VIDIOC_DQBUF, &breq);
+	err = __usrp_dma_ioctl(ctx->fd, USRPIOC_DQBUF, &breq);
 	if (err)
 		return NULL;
 
@@ -281,7 +281,7 @@ int usrp_dma_buf_export(struct usrp_dma_ctx *ctx, struct usrp_dma_buf *buf,
 	breq.type = __to_buf_type(ctx);
 	breq.index = buf->index;
 
-	err = __usrp_dma_ioctl(ctx->fd, VIDIOC_EXPBUF, &breq);
+	err = __usrp_dma_ioctl(ctx->fd, USRPIOC_EXPBUF, &breq);
 	if (err) {
 		log_warn(__func__, "failed to export buffer");
 		return err;
@@ -364,12 +364,12 @@ int usrp_dma_buf_recv_fd(int sockfd)
 int usrp_dma_ctx_start_streaming(struct usrp_dma_ctx *ctx)
 {
 	enum usrp_buf_type type = __to_buf_type(ctx);
-	return __usrp_dma_ioctl(ctx->fd, VIDIOC_STREAMON, (void *)type);
+	return __usrp_dma_ioctl(ctx->fd, USRPIOC_STREAMON, (void *)type);
 }
 
 int usrp_dma_ctx_stop_streaming(struct usrp_dma_ctx *ctx)
 {
 	enum usrp_buf_type type = __to_buf_type(ctx);
-	return __usrp_dma_ioctl(ctx->fd, VIDIOC_STREAMOFF, (void *)type);
+	return __usrp_dma_ioctl(ctx->fd, USRPIOC_STREAMOFF, (void *)type);
 }
 

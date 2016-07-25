@@ -95,12 +95,12 @@ struct usrp_exportbuffer {
 	__u32	reserved[11];
 };
 
-#define VIDIOC_REQBUFS		_IOWR('V',  8, struct usrp_requestbuffers)
-#define VIDIOC_QUERYBUF		_IOWR('V',  9, struct usrp_buffer)
-#define VIDIOC_QBUF		_IOWR('V', 15, struct usrp_buffer)
-#define VIDIOC_EXPBUF		_IOWR('V', 16, struct usrp_exportbuffer)
-#define VIDIOC_DQBUF		_IOWR('V', 17, struct usrp_buffer)
-#define VIDIOC_STREAMON		 _IOW('V', 18, int)
-#define VIDIOC_STREAMOFF	 _IOW('V', 19, int)
+#define USRPIOC_REQBUFS		_IOWR('V',  8, struct usrp_requestbuffers)
+#define USRPIOC_QUERYBUF	_IOWR('V',  9, struct usrp_buffer)
+#define USRPIOC_QBUF		_IOWR('V', 15, struct usrp_buffer)
+#define USRPIOC_EXPBUF		_IOWR('V', 16, struct usrp_exportbuffer)
+#define USRPIOC_DQBUF		_IOWR('V', 17, struct usrp_buffer)
+#define USRPIOC_STREAMON	_IOW('V', 18, int)
+#define USRPIOC_STREAMOFF	_IOW('V', 19, int)
 
 #endif /* USRP_STUFF_H */
