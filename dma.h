@@ -28,6 +28,7 @@ struct usrp_dma_buf {
 	void *mem;
 	size_t len;
 	size_t valid_bytes;
+	enum usrp_memory mem_type;
 };
 
 struct usrp_dma_ctx {
@@ -38,12 +39,17 @@ struct usrp_dma_ctx {
 	size_t nbufs;
 
 	struct ref refcnt;
+
+	const struct usrp_dma_buf_ops *ops;
+
+	enum usrp_memory mem_type;
 };
 
 void usrp_dma_init(int loglevel);
 
 struct usrp_dma_ctx *usrp_dma_ctx_alloc(const char *file,
-					const enum usrp_dma_direction dir);
+					const enum usrp_dma_direction dir,
+					enum usrp_memory mem_type);
 
 static inline void usrp_dma_ctx_put(struct usrp_dma_ctx *ctx)
 {

@@ -33,6 +33,11 @@
 #define TIMEOUT 1
 #define USRP_MAX_FRAMES 128
 
+struct usrp_dma_buf_ops {
+	int(*init)(struct usrp_dma_ctx *, struct usrp_dma_buf *, size_t);
+	void(*release)(struct usrp_dma_buf *);
+};
+
 void usrp_dma_init(int loglevel)
 {
 	log_init(loglevel, "usrp_dma");
@@ -85,34 +90,6 @@ static void __usrp_dma_ctx_free(const struct ref *ref)
 	free(ctx);
 }
 
-struct usrp_dma_ctx *usrp_dma_ctx_alloc(const char *file,
-					const enum usrp_dma_direction dir)
-{
-	struct usrp_dma_ctx *ctx;
-
-	ctx = malloc(sizeof(*ctx));
-	if (!ctx)
-		return NULL;
-
-	ctx->fd = open(file, O_RDWR);
-	if (ctx->fd < 0) {
-		log_warn(__func__, "Failed to open device");
-		goto out_free;
-	}
-
-	ctx->dir = dir;
-	ctx->bufs = NULL;
-	ctx->nbufs = 0;
-	ctx->refcnt = (struct ref){__usrp_dma_ctx_free, 1};
-
-	return ctx;
-
-out_free:
-	free(ctx);
-
-	return NULL;
-}
-
 
 static int __usrp_dma_buf_init(struct usrp_dma_ctx *ctx,
 			       struct usrp_dma_buf *buf, size_t index)
@@ -148,6 +125,36 @@ static int __usrp_dma_buf_init(struct usrp_dma_ctx *ctx,
 	return err;
 }
 
+struct usrp_dma_ctx *usrp_dma_ctx_alloc(const char *file,
+					const enum usrp_dma_direction dir,
+					enum usrp_memory mem_type)
+{
+	struct usrp_dma_ctx *ctx;
+
+	ctx = malloc(sizeof(*ctx));
+	if (!ctx)
+		return NULL;
+
+	ctx->fd = open(file, O_RDWR);
+	if (ctx->fd < 0) {
+		log_warn(__func__, "Failed to open device");
+		goto out_free;
+	}
+
+	ctx->dir = dir;
+	ctx->bufs = NULL;
+	ctx->nbufs = 0;
+	ctx->mem_type = mem_type;
+
+	ctx->refcnt = (struct ref){__usrp_dma_ctx_free, 1};
+
+	return ctx;
+
+out_free:
+	free(ctx);
+
+	return NULL;
+}
 
 int usrp_dma_request_buffers(struct usrp_dma_ctx *ctx, size_t num_buffers)
 {

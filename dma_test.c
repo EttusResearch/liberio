@@ -53,7 +53,7 @@ int main(int argc, char *argv[])
 
 	usrp_dma_init(3);
 
-	ctx = usrp_dma_ctx_alloc("/dev/tx-dma", TX);
+	ctx = usrp_dma_ctx_alloc("/dev/tx-dma", TX, USRP_MEMORY_MMAP);
 	if (!ctx)
 		return EXIT_FAILURE;
 

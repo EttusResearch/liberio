@@ -265,11 +265,13 @@ int main(int argc, char *argv[])
 	pthread_spin_init(&lock, PTHREAD_PROCESS_PRIVATE);
 	done = 0;
 
-	args[0].ctx = usrp_dma_ctx_alloc("/dev/tx-dma", TX);
+	args[0].ctx = usrp_dma_ctx_alloc("/dev/tx-dma", TX,
+					 USRP_MEMORY_MMAP);
 	if (!args[0].ctx)
 		return EXIT_FAILURE;
 
-	args[1].ctx = usrp_dma_ctx_alloc("/dev/rx-dma", RX);
+	args[1].ctx = usrp_dma_ctx_alloc("/dev/rx-dma", RX,
+					 USRP_MEMORY_MMAP);
 	if (!args[1].ctx)
 		goto out_err_rx;
 
