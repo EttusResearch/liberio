@@ -46,8 +46,8 @@ enum usrp_memory {
 
 struct usrp_requestbuffers {
 	__u32			count;
-	__u32			type;		/* enum v4l2_buf_type */
-	__u32			memory;		/* enum v4l2_memory */
+	__u32			type;		/* enum usrp_buf_type */
+	__u32			memory;		/* enum usrp_memory */
 	__u32			reserved[2];
 };
 
@@ -78,7 +78,7 @@ struct usrp_buffer {
 	union {
 		__u32           offset;
 		unsigned long   userptr;
-		struct v4l2_plane *planes;
+		struct usrp_plane *planes;
 		__s32		fd;
 	} m;
 	__u32			length;
@@ -87,7 +87,7 @@ struct usrp_buffer {
 };
 
 struct usrp_exportbuffer {
-	__u32	type; /* enum v4l2_buf_type */
+	__u32	type; /* enum usrp_buf_type */
 	__u32	index;
 	__u32	plane;
 	__u32	flags;
