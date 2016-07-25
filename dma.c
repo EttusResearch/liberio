@@ -59,7 +59,7 @@ static int __usrp_dma_ioctl(int fd, unsigned long req, void *arg)
 	return r;
 }
 
-static void __usrp_dma_buf_unmap(struct usrp_dma_buf *buf)
+static void __usrp_dma_buf_release_mmap(struct usrp_dma_buf *buf)
 {
 	if (buf && buf->mem)
 		munmap(buf->mem, buf->len);
@@ -75,7 +75,7 @@ static void __usrp_dma_ctx_free(const struct ref *ref)
 		return;
 
 	for (i = ctx->nbufs; i > 0; i--)
-		__usrp_dma_buf_unmap(ctx->bufs + i);
+		ctx->ops->release(ctx->bufs + i);
 
 	/*
 	for (i = 0; i < RETRIES; i++) {
@@ -91,8 +91,8 @@ static void __usrp_dma_ctx_free(const struct ref *ref)
 }
 
 
-static int __usrp_dma_buf_init(struct usrp_dma_ctx *ctx,
-			       struct usrp_dma_buf *buf, size_t index)
+static int __usrp_dma_buf_init_mmap(struct usrp_dma_ctx *ctx,
+				    struct usrp_dma_buf *buf, size_t index)
 {
 	struct usrp_buffer breq;
 	int err;
@@ -125,6 +125,10 @@ static int __usrp_dma_buf_init(struct usrp_dma_ctx *ctx,
 	return err;
 }
 
+static const struct usrp_dma_buf_ops __usrp_dma_buf_mmap_ops = {
+	.init		=	__usrp_dma_buf_init_mmap,
+	.release	=	__usrp_dma_buf_release_mmap,
+};
 struct usrp_dma_ctx *usrp_dma_ctx_alloc(const char *file,
 					const enum usrp_dma_direction dir,
 					enum usrp_memory mem_type)
@@ -145,6 +149,13 @@ struct usrp_dma_ctx *usrp_dma_ctx_alloc(const char *file,
 	ctx->bufs = NULL;
 	ctx->nbufs = 0;
 	ctx->mem_type = mem_type;
+
+	if (mem_type == USRP_MEMORY_MMAP) {
+		ctx->ops = &__usrp_dma_buf_mmap_ops;
+	} else {
+		log_crit(__func__, "Invalid memory type specified");
+		return NULL;
+	}
 
 	ctx->refcnt = (struct ref){__usrp_dma_ctx_free, 1};
 
@@ -188,7 +199,7 @@ int usrp_dma_request_buffers(struct usrp_dma_ctx *ctx, size_t num_buffers)
 	}
 
 	for (i = 0; i < req.count; i++) {
-		err = __usrp_dma_buf_init(ctx, ctx->bufs + i, i);
+		err = ctx->ops->init(ctx, ctx->bufs + i, i);
 		if (err) {
 			log_crit(__func__, "failed to init buffer (%u/%u)", i,
 				req.count);
@@ -202,7 +213,7 @@ int usrp_dma_request_buffers(struct usrp_dma_ctx *ctx, size_t num_buffers)
 
 out_free:
 	while (i) {
-		__usrp_dma_buf_unmap(ctx->bufs + i);
+		ctx->ops->release(ctx->bufs + i);
 		i--;
 	}
 
