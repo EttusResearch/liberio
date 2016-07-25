@@ -125,10 +125,40 @@ static int __usrp_dma_buf_init_mmap(struct usrp_dma_ctx *ctx,
 	return err;
 }
 
+static int __usrp_dma_buf_init_userptr(struct usrp_dma_ctx *ctx,
+				       struct usrp_dma_buf *buf, size_t index)
+{
+	struct usrp_buffer_breq;
+	int err;
+
+	buf->mem = aligned_alloc(getpagesize(), 8192);
+	if (!buf->mem)
+		log_crit(__func__, "failed to allocate memory for buf %u",
+			 index);
+
+	buf->index = index;
+	buf->len = 8192;
+	buf->valid_bytes = buf->len;
+
+	return 0;
+}
+
+static void __usrp_dma_buf_release_userptr(struct usrp_dma_buf *buf)
+{
+	if (buf && buf->mem)
+		free(buf->mem);
+}
+
 static const struct usrp_dma_buf_ops __usrp_dma_buf_mmap_ops = {
 	.init		=	__usrp_dma_buf_init_mmap,
 	.release	=	__usrp_dma_buf_release_mmap,
 };
+
+static const struct usrp_dma_buf_ops __usrp_dma_buf_userptr_ops = {
+	.init		=	__usrp_dma_buf_init_userptr,
+	.release	=	__usrp_dma_buf_release_userptr,
+};
+
 struct usrp_dma_ctx *usrp_dma_ctx_alloc(const char *file,
 					const enum usrp_dma_direction dir,
 					enum usrp_memory mem_type)
@@ -152,6 +182,8 @@ struct usrp_dma_ctx *usrp_dma_ctx_alloc(const char *file,
 
 	if (mem_type == USRP_MEMORY_MMAP) {
 		ctx->ops = &__usrp_dma_buf_mmap_ops;
+	} else if (mem_type == USRP_MEMORY_USERPTR){
+		ctx->ops = &__usrp_dma_buf_userptr_ops;
 	} else {
 		log_crit(__func__, "Invalid memory type specified");
 		return NULL;
