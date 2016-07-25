@@ -154,9 +154,7 @@ int usrp_dma_request_buffers(struct usrp_dma_ctx *ctx, size_t num_buffers)
 	struct usrp_requestbuffers req;
 	int err;
 	size_t i;
-	enum usrp_buf_type type = (ctx->dir == TX) ?
-		USRP_BUF_TYPE_OUTPUT :
-		USRP_BUF_TYPE_INPUT;
+	enum usrp_buf_type type = __to_buf_type(ctx);
 
 	if (num_buffers > USRP_MAX_FRAMES) {
 		log_warnx(__func__, "tried to allocate %u buffers, max is %u"
