@@ -24,7 +24,7 @@ static uint64_t get_time(void)
 
 	err = clock_gettime(CLOCK_MONOTONIC, &ts);
 	if (err) {
-		fprintf(stderr, "failed to get time\n");
+		log_crit(__func__, "failed to get time");
 	}
 
 	return ((uint64_t)ts.tv_sec) * 1000 * 1000 * 1000 + ts.tv_nsec;
@@ -57,7 +57,7 @@ int main(int argc, char *argv[])
 	uint64_t last;
 	uint64_t *vals;
 
-	usrp_dma_init();
+	usrp_dma_init(3);
 
 	ctx = usrp_dma_ctx_alloc("/dev/rx-dma", RX);
 	if (!ctx)
@@ -65,7 +65,7 @@ int main(int argc, char *argv[])
 
 	err = usrp_dma_request_buffers(ctx, NBUFS);
 	if (err < 0) {
-		fprintf(stderr, "failed to request buffers\n");
+		log_crit(__func__, "failed to request buffers");
 		goto out_free;
 	}
 
@@ -76,7 +76,7 @@ int main(int argc, char *argv[])
 		//printf("-- Queing up buffer %u\n", i);
 		err = usrp_dma_buf_enqueue(ctx, ctx->bufs + i);
 		if (err) {
-			fprintf(stderr, "failed to get buffer\n");
+			log_warn(__func__, "failed to get buffer");
 			goto out_free;
 		}
 	}
@@ -85,7 +85,7 @@ int main(int argc, char *argv[])
 	log_info(__func__, "Starting streaming");
 	err = usrp_dma_ctx_start_streaming(ctx);
 	if (err) {
-		fprintf(stderr, "failed to start streaming\n");
+		log_crit(__func__, "failed to start streaming\n");
 		goto out_free;
 	}
 
@@ -102,7 +102,7 @@ int main(int argc, char *argv[])
 
 		buf = usrp_dma_buf_dequeue(ctx);
 		if (!buf) {
-			fprintf(stderr, "failed to get buffer\n");
+			log_warn(__func__, "failed to get buffer");
 			goto out_free;
 		}
 
@@ -123,7 +123,7 @@ int main(int argc, char *argv[])
 		if (i < NITER - 1) {
 			err = usrp_dma_buf_enqueue(ctx, buf);
 			if (err) {
-				fprintf(stderr, "failed to get buffer\n");
+				log_warn(__func__, "failed to get buffer");
 				goto out_free;
 			}
 		}
@@ -134,7 +134,7 @@ int main(int argc, char *argv[])
 	log_info(__func__, "Stopping streaming");
 	err = usrp_dma_ctx_stop_streaming(ctx);
 	if (err) {
-		fprintf(stderr, "failed to start streaming\n");
+		log_crit(__func__, "failed to start streaming");
 		goto out_free;
 	}
 

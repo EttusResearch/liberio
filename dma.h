@@ -40,7 +40,7 @@ struct usrp_dma_ctx {
 	struct ref refcnt;
 };
 
-void usrp_dma_init(void);
+void usrp_dma_init(int loglevel);
 
 struct usrp_dma_ctx *usrp_dma_ctx_alloc(const char *file,
 					const enum usrp_dma_direction dir);

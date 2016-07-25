@@ -1,5 +1,5 @@
-#ifndef V4L2_STUFF_H
-#define V4L2_STUFF_H
+#ifndef USRP_STUFF_H
+#define USRP_STUFF_H
 
 #include <stdint.h>
 #include <sys/ioctl.h>
@@ -9,7 +9,7 @@
 #define __s32 int32_t
 #define __u8 uint8_t
 
-struct v4l2_timecode {
+struct usrp_timecode {
 	__u32	type;
 	__u32	flags;
 	__u8	frames;
@@ -20,38 +20,38 @@ struct v4l2_timecode {
 };
 
 
-enum v4l2_buf_type {
-	V4L2_BUF_TYPE_VIDEO_CAPTURE        = 1,
-	V4L2_BUF_TYPE_VIDEO_OUTPUT         = 2,
-	V4L2_BUF_TYPE_VIDEO_OVERLAY        = 3,
-	V4L2_BUF_TYPE_VBI_CAPTURE          = 4,
-	V4L2_BUF_TYPE_VBI_OUTPUT           = 5,
-	V4L2_BUF_TYPE_SLICED_VBI_CAPTURE   = 6,
-	V4L2_BUF_TYPE_SLICED_VBI_OUTPUT    = 7,
-	V4L2_BUF_TYPE_VIDEO_OUTPUT_OVERLAY = 8,
-	V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE = 9,
-	V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE  = 10,
-	V4L2_BUF_TYPE_SDR_CAPTURE          = 11,
-	V4L2_BUF_TYPE_SDR_OUTPUT           = 12,
+enum usrp_buf_type {
+	USRP_BUF_TYPE_INPUT          = 1,
+	USRP_BUF_TYPE_OUTPUT         = 2,
+	USRP_BUF_TYPE_VIDEO_OVERLAY        = 3,
+	USRP_BUF_TYPE_VBI_CAPTURE          = 4,
+	USRP_BUF_TYPE_VBI_OUTPUT           = 5,
+	USRP_BUF_TYPE_SLICED_VBI_CAPTURE   = 6,
+	USRP_BUF_TYPE_SLICED_VBI_OUTPUT    = 7,
+	USRP_BUF_TYPE_VIDEO_OUTPUT_OVERLAY = 8,
+	USRP_BUF_TYPE_VIDEO_CAPTURE_MPLANE = 9,
+	USRP_BUF_TYPE_VIDEO_OUTPUT_MPLANE  = 10,
+	USRP_BUF_TYPE_SDR_CAPTURE          = 11,
+	USRP_BUF_TYPE_SDR_OUTPUT           = 12,
 	/* Deprecated, do not use */
-	V4L2_BUF_TYPE_PRIVATE              = 0x80,
+	USRP_BUF_TYPE_PRIVATE              = 0x80,
 };
 
-enum v4l2_memory {
-	V4L2_MEMORY_MMAP             = 1,
-	V4L2_MEMORY_USERPTR          = 2,
-	V4L2_MEMORY_OVERLAY          = 3,
-	V4L2_MEMORY_DMABUF           = 4,
+enum usrp_memory {
+	USRP_MEMORY_MMAP             = 1,
+	USRP_MEMORY_USERPTR          = 2,
+	USRP_MEMORY_OVERLAY          = 3,
+	USRP_MEMORY_DMABUF           = 4,
 };
 
-struct v4l2_requestbuffers {
+struct usrp_requestbuffers {
 	__u32			count;
 	__u32			type;		/* enum v4l2_buf_type */
 	__u32			memory;		/* enum v4l2_memory */
 	__u32			reserved[2];
 };
 
-struct v4l2_plane {
+struct usrp_plane {
 	__u32			bytesused;
 	__u32			length;
 	union {
@@ -63,14 +63,14 @@ struct v4l2_plane {
 	__u32			reserved[11];
 };
 
-struct v4l2_buffer {
+struct usrp_buffer {
 	__u32			index;
 	__u32			type;
 	__u32			bytesused;
 	__u32			flags;
 	__u32			field;
 	struct timeval		timestamp;
-	struct v4l2_timecode	timecode;
+	struct usrp_timecode	timecode;
 	__u32			sequence;
 
 	/* memory location */
@@ -86,7 +86,7 @@ struct v4l2_buffer {
 	__u32			reserved;
 };
 
-struct v4l2_exportbuffer {
+struct usrp_exportbuffer {
 	__u32	type; /* enum v4l2_buf_type */
 	__u32	index;
 	__u32	plane;
@@ -95,12 +95,12 @@ struct v4l2_exportbuffer {
 	__u32	reserved[11];
 };
 
-#define VIDIOC_REQBUFS		_IOWR('V',  8, struct v4l2_requestbuffers)
-#define VIDIOC_QUERYBUF		_IOWR('V',  9, struct v4l2_buffer)
-#define VIDIOC_QBUF		_IOWR('V', 15, struct v4l2_buffer)
-#define VIDIOC_EXPBUF		_IOWR('V', 16, struct v4l2_exportbuffer)
-#define VIDIOC_DQBUF		_IOWR('V', 17, struct v4l2_buffer)
+#define VIDIOC_REQBUFS		_IOWR('V',  8, struct usrp_requestbuffers)
+#define VIDIOC_QUERYBUF		_IOWR('V',  9, struct usrp_buffer)
+#define VIDIOC_QBUF		_IOWR('V', 15, struct usrp_buffer)
+#define VIDIOC_EXPBUF		_IOWR('V', 16, struct usrp_exportbuffer)
+#define VIDIOC_DQBUF		_IOWR('V', 17, struct usrp_buffer)
 #define VIDIOC_STREAMON		 _IOW('V', 18, int)
 #define VIDIOC_STREAMOFF	 _IOW('V', 19, int)
 
-#endif /* V4L2_STUFF_H */
+#endif /* USRP_STUFF_H */

@@ -1,10 +1,13 @@
-bin_PROGRAMS = dma_test dma_test_recv dma-loopback dma-loopie
+lib_LTLIBRARIES = libusrpdma.la
+libusrpdma_la_SOURCES = dma.c log.c crc32.c
 
-dma_test_SOURCES = dma_test.c dma.c log.c
+bin_PROGRAMS = dma-loopback dma_test dma_test_recv
 
-dma_test_recv_SOURCES = dma_test_recv.c dma.c log.c
+dma_loopback_SOURCES = dma-loopback.c
+dma_loopback_LDADD = -lusrpdma -lpthread
 
-dma_loopie_SOURCES = dma-loopie.c dma.c crc32.c log.c
+dma_test_SOURCES = dma_test.c
+dma_test_LDADD = -lusrpdma -lpthread
 
-dma_loopback_SOURCES = dma-loopback.c dma.c crc32.c log.c
-dma_loopback_LDADD = -lpthread
+dma_test_recv_SOURCES = dma_test_recv.c
+dma_test_recv_LDADD = -lusrpdma -lpthread

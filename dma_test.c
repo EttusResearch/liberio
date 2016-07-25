@@ -51,7 +51,7 @@ int main(int argc, char *argv[])
 	uint64_t start, end;
 	uint64_t transmitted;
 
-	usrp_dma_init();
+	usrp_dma_init(3);
 
 	ctx = usrp_dma_ctx_alloc("/dev/tx-dma", TX);
 	if (!ctx)
@@ -59,14 +59,14 @@ int main(int argc, char *argv[])
 
 	err = usrp_dma_request_buffers(ctx, NBUFS);
 	if (err < 0) {
-		fprintf(stderr, "failed to request buffers\n");
+		log_crit(__func__, "failed to request buffers");
 		goto out_free;
 	}
 
 	log_info(__func__, "Starting streaming");
 	err = usrp_dma_ctx_start_streaming(ctx);
 	if (err) {
-		fprintf(stderr, "failed to start streaming\n");
+		log_crit(__func__, "failed to start streaming");
 		goto out_free;
 	}
 
@@ -81,7 +81,7 @@ int main(int argc, char *argv[])
 		if (i >= ctx->nbufs) {
 			buf = usrp_dma_buf_dequeue(ctx);
 			if (!buf) {
-				fprintf(stderr, "failed to get buffer\n");
+				log_warn(__func__, "failed to get buffer");
 				goto out_free;
 			}
 		} else {
@@ -93,7 +93,7 @@ int main(int argc, char *argv[])
 
 		err = usrp_dma_buf_enqueue(ctx, buf);
 		if (err) {
-			fprintf(stderr, "failed to get buffer\n");
+			log_warn(__func__, "failed to get buffer");
 			goto out_free;
 		}
 	}
@@ -103,15 +103,15 @@ int main(int argc, char *argv[])
 	log_info(__func__, "Stopping streaming");
 	err = usrp_dma_ctx_stop_streaming(ctx);
 	if (err) {
-		fprintf(stderr, "failed to stop streaming\n");
+		log_crit(__func__, "failed to stop streaming");
 		goto out_free;
 	}
 
 	usrp_dma_ctx_put(ctx);
 
-	//printf("-- Took %llu ns per loop\n", (end - start) / NITER);
 	log_info(__func__, "Transmitted %llu bytes in %llu ns -> %f MB/s",
-	       transmitted, (end - start), ((double) transmitted / (double) (end-start) * 1e9) / 1024.0 / 1024.0);
+	       transmitted, (end - start),
+	       ((double) transmitted / (double) (end-start) * 1e9) / 1024.0 / 1024.0);
 
 	return 0;
 

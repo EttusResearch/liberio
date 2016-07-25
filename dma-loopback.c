@@ -13,6 +13,7 @@
 #include "dma.h"
 #include "crc32.h"
 #include "log.h"
+#include "util.h"
 
 uint32_t nbufs = 128;
 uint32_t niter = 25000;
@@ -56,20 +57,20 @@ static uint64_t get_time(void)
 
 	err = clock_gettime(CLOCK_MONOTONIC, &ts);
 	if (err) {
-		fprintf(stderr, "failed to get time\n");
+		log_warnx(__func__, "failed to get time");
 	}
 
 	return ((uint64_t)ts.tv_sec) * 1000 * 1000 * 1000 + ts.tv_nsec;
 }
 
-static void fill_buf(struct usrp_dma_buf *buf, uint64_t val)
+static void fill_buf(struct usrp_dma_buf *buf, uint32_t val)
 {
-	uint32_t *vals = buf->mem;
+	uint64_t *vals = buf->mem;
 	uint32_t crc;
 
 
-	for (size_t i = 0; i < buf->len / 4 - 1; i++)
-		vals[i] = val + i;
+	for (size_t i = 0; i < buf->len / 8; i++)
+		vals[i] = val;
 
 	//crc = crc32(0, buf->mem, ((buf->len / 4) - sizeof(*vals)));
 	//vals[((buf->len -1 )/ 4)] = crc;
@@ -106,10 +107,13 @@ void *rx_thread(void *args)
 	int err, tx_done;
 	uint64_t count = 0;
 	uint64_t start, end;
+	uint64_t last;
+	uint64_t *vals;
+	int first = 1;
 
 	err = usrp_dma_request_buffers(rx_ctx, nbufs);
 	if (err < 0) {
-		fprintf(stderr, "failed to request rx buffers\n");
+		log_crit(__func__, "failed to request rx buffers");
 		goto out_free;
 	}
 
@@ -123,7 +127,7 @@ void *rx_thread(void *args)
 	log_info(__func__, "Starting streaming");
 	err = usrp_dma_ctx_start_streaming(rx_ctx);
 	if (err) {
-		fprintf(stderr, "failed to start streaming\n");
+		log_crit(__func__, "failed to start streaming");
 		goto out_free;
 	}
 
@@ -133,18 +137,34 @@ void *rx_thread(void *args)
 	{
 		struct usrp_dma_buf *buf;
 
+
 		buf = usrp_dma_buf_dequeue(rx_ctx);
 		if (!buf) {
-			fprintf(stderr, "failed to get RX buffer\n");
+			log_warn(__func__, "failed to get RX buffer");
 			goto out_stop_streaming;
 		}
+
+		vals = buf->mem;
+
+		if (first) {
+			first = 0;
+		} else {
+			if ((vals[0] - last) != 1) {
+				log_warnx(__func__,
+					 "Missed a packet, gap = %llu",
+					 vals[0] - last);
+			}
+		}
+		last = vals[0];
+
+
 
 		//check_buf(buf);
 		count += buf->len;
 
 		err = usrp_dma_buf_enqueue(rx_ctx, buf);
 		if (err) {
-			fprintf(stderr, "failed to put RX buffer\n");
+			log_warn(__func__, "failed to put RX buffer");
 			goto out_stop_streaming;
 		}
 	}
@@ -173,14 +193,14 @@ void *tx_thread(void *args)
 
 	err = usrp_dma_request_buffers(tx_ctx, nbufs);
 	if (err < 0) {
-		fprintf(stderr, "failed to request tx buffers\n");
+		log_crit(__func__, "failed to request tx buffers");
 		goto out_free;
 	}
 
 	log_info(__func__, "Starting streaming");
 	err = usrp_dma_ctx_start_streaming(tx_ctx);
 	if (err) {
-		fprintf(stderr, "failed to start streaming\n");
+		log_crit(__func__, "failed to start streaming");
 		goto out_free;
 	}
 
@@ -190,17 +210,17 @@ void *tx_thread(void *args)
 		/* all buffers start out in dequeued state */
 		if (i >= tx_ctx->nbufs) {
 			buf = usrp_dma_buf_dequeue(tx_ctx);
-			if (!buf)
+			if (unlikely(!buf))
 				goto out_stop_streaming;
 		} else {
 			buf = tx_ctx->bufs + i;
 		}
 
-		fill_buf(buf, 0xace0ba5e);
+		fill_buf(buf, i);
 
 		err = usrp_dma_buf_enqueue(tx_ctx, buf);
-		if (err) {
-			fprintf(stderr, "failed to put TX buffer\n");
+		if (unlikely(err)) {
+			log_warn(__func__, "failed to put TX buffer");
 			goto out_stop_streaming;
 		}
 	}
@@ -223,7 +243,7 @@ int main(int argc, char *argv[])
 	int opt;
 	struct thread_args args[2];
 
-	usrp_dma_init();
+	usrp_dma_init(3);
 
 	while ((opt = getopt(argc, argv, "n:b:")) != -1) {
 		switch (opt) {

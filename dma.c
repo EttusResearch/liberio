@@ -31,17 +31,16 @@
 
 #define RETRIES 100
 #define TIMEOUT 1
-#define V4L2_MAX_FRAMES 128
+#define USRP_MAX_FRAMES 128
 
-void usrp_dma_init(void)
+void usrp_dma_init(int loglevel)
 {
-	log_init(3, "usrp_dma");
+	log_init(loglevel, "usrp_dma");
 }
 
-static inline enum v4l2_buf_type __to_buf_type(struct usrp_dma_ctx *ctx)
+static inline enum usrp_buf_type __to_buf_type(struct usrp_dma_ctx *ctx)
 {
-	return (ctx->dir == TX) ? V4L2_BUF_TYPE_VIDEO_OUTPUT
-		: V4L2_BUF_TYPE_VIDEO_CAPTURE;
+	return (ctx->dir == TX) ? USRP_BUF_TYPE_OUTPUT : USRP_BUF_TYPE_INPUT;
 }
 
 static int __usrp_dma_ioctl(int fd, unsigned long req, void *arg)
@@ -97,7 +96,7 @@ struct usrp_dma_ctx *usrp_dma_ctx_alloc(const char *file,
 
 	ctx->fd = open(file, O_RDWR);
 	if (ctx->fd < 0) {
-		fprintf(stderr, "Failed to open device\n");
+		log_warn(__func__, "Failed to open device");
 		goto out_free;
 	}
 
@@ -118,25 +117,23 @@ out_free:
 static int __usrp_dma_buf_init(struct usrp_dma_ctx *ctx,
 			       struct usrp_dma_buf *buf, size_t index)
 {
-	struct v4l2_buffer breq;
+	struct usrp_buffer breq;
 	int err;
 
 	memset(&breq, 0, sizeof(breq));
 	breq.type = __to_buf_type(ctx);
 	breq.index = index;
-	breq.memory = V4L2_MEMORY_MMAP;
+	breq.memory = USRP_MEMORY_MMAP;
 
 	err = __usrp_dma_ioctl(ctx->fd, VIDIOC_QUERYBUF, &breq);
 	if (err) {
-		fprintf(stderr,
-			"failed to create usrp_dma_buf for index %u\n",
-			index);
+		log_warn(__func__,
+			"failed to create usrp_dma_buf for index %u", index);
 		return err;
 	}
 
 	buf->index = index;
 	buf->len = breq.length;
-	/* TODO: don't make this 4096 */
 	buf->valid_bytes = buf->len;
 
 	buf->mem = mmap(NULL, breq.length,
@@ -144,7 +141,7 @@ static int __usrp_dma_buf_init(struct usrp_dma_ctx *ctx,
 			MAP_SHARED, ctx->fd,
 			breq.m.offset);
 	if (buf->mem == MAP_FAILED) {
-		fprintf(stderr, "failed to mmap buffer with index %u", index);
+		log_warnx(__func__, "failed to mmap buffer with index %u", index);
 		return err;
 	}
 
@@ -154,40 +151,41 @@ static int __usrp_dma_buf_init(struct usrp_dma_ctx *ctx,
 
 int usrp_dma_request_buffers(struct usrp_dma_ctx *ctx, size_t num_buffers)
 {
-	struct v4l2_requestbuffers req;
+	struct usrp_requestbuffers req;
 	int err;
 	size_t i;
-	enum v4l2_buf_type type = (ctx->dir == TX) ?
-		V4L2_BUF_TYPE_VIDEO_OUTPUT :
-		V4L2_BUF_TYPE_VIDEO_CAPTURE;
+	enum usrp_buf_type type = (ctx->dir == TX) ?
+		USRP_BUF_TYPE_OUTPUT :
+		USRP_BUF_TYPE_INPUT;
 
-	if (num_buffers > V4L2_MAX_FRAMES) {
-		log_warn(__func__, "tried to allocate %u num_buffers, \
-			 max is %u\n", V4L2_MAX_FRAMES);
-		num_buffers = V4L2_MAX_FRAMES;
+	if (num_buffers > USRP_MAX_FRAMES) {
+		log_warnx(__func__, "tried to allocate %u buffers, max is %u"
+		                    " proceeding with: %u",
+			 num_buffers, USRP_MAX_FRAMES, USRP_MAX_FRAMES);
+		num_buffers = USRP_MAX_FRAMES;
 	}
 
 	memset(&req, 0, sizeof(req));
 	req.type = type;
-	req.memory = V4L2_MEMORY_MMAP;
+	req.memory = USRP_MEMORY_MMAP;
 	req.count = num_buffers;
 
 	err = __usrp_dma_ioctl(ctx->fd, VIDIOC_REQBUFS, &req);
 	if (err) {
-		fprintf(stderr, "failed to request buffers (num_buffers was %u): %s\n", num_buffers, strerror(errno));
+		log_crit(__func__, "failed to request buffers (num_buffers was %u)", num_buffers);
 		return err;
 	}
 
 	ctx->bufs = calloc(req.count, sizeof(struct usrp_dma_buf));
 	if (!ctx->bufs) {
-		fprintf(stderr, "failed to allo mem for buffers\n");
+		log_crit(__func__, "failed to alloc mem for buffers");
 		return -ENOMEM;
 	}
 
 	for (i = 0; i < req.count; i++) {
 		err = __usrp_dma_buf_init(ctx, ctx->bufs + i, i);
 		if (err) {
-			fprintf(stderr, "failed to init buffer (%u/%u)\n", i,
+			log_crit(__func__, "failed to init buffer (%u/%u)", i,
 				req.count);
 			goto out_free;
 		}
@@ -210,16 +208,13 @@ out_free:
 
 int usrp_dma_buf_enqueue(struct usrp_dma_ctx *ctx, struct usrp_dma_buf *buf)
 {
-	struct v4l2_buffer breq;
+	struct usrp_buffer breq;
 	fd_set fds;
 	struct timeval tv;
 
-	//printf("%s: index=%u\n", __func__, buf->index);
-	//log_warn("index=%u", __func__, buf->index);
-
 	memset(&breq, 0, sizeof(breq));
 	breq.type = __to_buf_type(ctx);
-	breq.memory = V4L2_MEMORY_MMAP;
+	breq.memory = USRP_MEMORY_MMAP;
 	breq.index = buf->index;
 	if (ctx->dir == TX)
 		breq.bytesused = buf->valid_bytes;
@@ -229,7 +224,7 @@ int usrp_dma_buf_enqueue(struct usrp_dma_ctx *ctx, struct usrp_dma_buf *buf)
 
 struct usrp_dma_buf *usrp_dma_buf_dequeue(struct usrp_dma_ctx *ctx)
 {
-	struct v4l2_buffer breq;
+	struct usrp_buffer breq;
 	struct usrp_dma_buf *buf;
 	int err;
 	fd_set fds;
@@ -241,32 +236,28 @@ struct usrp_dma_buf *usrp_dma_buf_dequeue(struct usrp_dma_ctx *ctx)
 	tv.tv_sec = 0;
 	tv.tv_usec = 250000;
 
-	//printf("-- Waiting for buffer (%s)\n", ctx->dir == TX ? "TX" : "RX");
 	if (ctx->dir == RX)
 		err = select(ctx->fd + 1, &fds, NULL, NULL, &tv);
 	else
 		err = select(ctx->fd + 1, NULL, &fds, NULL, &tv);
 
 	if (!err) {
-		//fprintf(stderr, "select timeout\n");
+		log_warnx(__func__, "select timeout");
 		return NULL;
 	}
 
 	if (-1 == err) {
-		fprintf(stderr, "select failed: %s\n", strerror(errno));
+		log_warn(__func__, "select failed");
 		return NULL;
 	}
 
 	memset(&breq, 0, sizeof(breq));
 	breq.type = __to_buf_type(ctx);
-	breq.memory = V4L2_MEMORY_MMAP;
+	breq.memory = USRP_MEMORY_MMAP;
 
 	err = __usrp_dma_ioctl(ctx->fd, VIDIOC_DQBUF, &breq);
 	if (err)
 		return NULL;
-
-	//printf("%s: index=%u\n", __func__, breq.index);
-	//log_warn("index=%u", __func__, buf->index);
 
 	buf = ctx->bufs + breq.index;
 	if (ctx->dir == RX)
@@ -285,7 +276,7 @@ struct usrp_dma_buf *usrp_dma_buf_dequeue(struct usrp_dma_ctx *ctx)
 int usrp_dma_buf_export(struct usrp_dma_ctx *ctx, struct usrp_dma_buf *buf,
 			int *dmafd)
 {
-	struct v4l2_exportbuffer breq;
+	struct usrp_exportbuffer breq;
 	int err;
 
 	memset(&breq, 0, sizeof(breq));
@@ -294,7 +285,7 @@ int usrp_dma_buf_export(struct usrp_dma_ctx *ctx, struct usrp_dma_buf *buf,
 
 	err = __usrp_dma_ioctl(ctx->fd, VIDIOC_EXPBUF, &breq);
 	if (err) {
-		fprintf(stderr, "failed to export buffer\n");
+		log_warn(__func__, "failed to export buffer");
 		return err;
 	}
 
@@ -374,13 +365,13 @@ int usrp_dma_buf_recv_fd(int sockfd)
 
 int usrp_dma_ctx_start_streaming(struct usrp_dma_ctx *ctx)
 {
-	enum v4l2_buf_type type = __to_buf_type(ctx);
+	enum usrp_buf_type type = __to_buf_type(ctx);
 	return __usrp_dma_ioctl(ctx->fd, VIDIOC_STREAMON, (void *)type);
 }
 
 int usrp_dma_ctx_stop_streaming(struct usrp_dma_ctx *ctx)
 {
-	enum v4l2_buf_type type = __to_buf_type(ctx);
+	enum usrp_buf_type type = __to_buf_type(ctx);
 	return __usrp_dma_ioctl(ctx->fd, VIDIOC_STREAMOFF, (void *)type);
 }
 
