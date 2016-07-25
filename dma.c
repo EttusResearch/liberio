@@ -118,7 +118,7 @@ static int __usrp_dma_buf_init_mmap(struct usrp_dma_ctx *ctx,
 			MAP_SHARED, ctx->fd,
 			breq.m.offset);
 	if (buf->mem == MAP_FAILED) {
-		log_warnx(__func__, "failed to mmap buffer with index %u", index);
+		log_warn(__func__, "failed to mmap buffer with index %u", index);
 		return err;
 	}
 
