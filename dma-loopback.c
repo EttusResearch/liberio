@@ -243,16 +243,21 @@ int main(int argc, char *argv[])
 	void *status;
 	int opt;
 	struct thread_args args[2];
+	enum usrp_memory tx_type = USRP_MEMORY_MMAP;
+	enum usrp_memory rx_type = USRP_MEMORY_MMAP;
 
 	usrp_dma_init(3);
 
-	while ((opt = getopt(argc, argv, "n:b:")) != -1) {
+	while ((opt = getopt(argc, argv, "n:b:u")) != -1) {
 		switch (opt) {
 		case 'b':
 			nbufs = atoi(optarg);
 			break;
 		case 'n':
 			niter = atoi(optarg);
+			break;
+		case 'u':
+			tx_type = USRP_MEMORY_USERPTR;
 			break;
 		default:
 			print_usage();
@@ -266,12 +271,12 @@ int main(int argc, char *argv[])
 	done = 0;
 
 	args[0].ctx = usrp_dma_ctx_alloc("/dev/tx-dma", TX,
-					 USRP_MEMORY_MMAP);
+					 tx_type);
 	if (!args[0].ctx)
 		return EXIT_FAILURE;
 
 	args[1].ctx = usrp_dma_ctx_alloc("/dev/rx-dma", RX,
-					 USRP_MEMORY_MMAP);
+					 rx_type);
 	if (!args[1].ctx)
 		goto out_err_rx;
 
