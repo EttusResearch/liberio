@@ -45,6 +45,7 @@ static void print_usage(void)
 	       "Options:\n"
 	       "        -n (number of iterations) e.g. 25000\n"
 	       "        -b (number of buffers) e.g. 128\n"
+	       "        -u (use userptr allocation for TX)\n\n"
 	       "        -h (print this help message)\n\n"
 	       "Example:\n"
 	       "$ ./dma-loopack -n 25000 -b 128\n");
@@ -140,7 +141,7 @@ void *rx_thread(void *args)
 
 		buf = usrp_dma_buf_dequeue(rx_ctx);
 		if (!buf) {
-			log_warn(__func__, "failed to get RX buffer");
+			log_warnx(__func__, "failed to get RX buffer");
 			goto out_stop_streaming;
 		}
 
@@ -164,7 +165,7 @@ void *rx_thread(void *args)
 
 		err = usrp_dma_buf_enqueue(rx_ctx, buf);
 		if (err) {
-			log_warn(__func__, "failed to put RX buffer");
+			log_warnx(__func__, "failed to put RX buffer");
 			goto out_stop_streaming;
 		}
 	}
