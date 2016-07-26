@@ -28,7 +28,6 @@ struct usrp_dma_buf {
 	void *mem;
 	size_t len;
 	size_t valid_bytes;
-	enum usrp_memory mem_type;
 };
 
 struct usrp_dma_ctx {

@@ -131,13 +131,17 @@ static int __usrp_dma_buf_init_userptr(struct usrp_dma_ctx *ctx,
 	struct usrp_buffer_breq;
 	int err;
 
-	buf->mem = aligned_alloc(getpagesize(), 8192);
-	if (!buf->mem)
+	/* until we have scatter gather capabilities, be happy
+	 * with page sized chunks */
+	err = posix_memalign(&buf->mem, getpagesize(), getpagesize());
+	if (err || !buf->mem)
 		log_crit(__func__, "failed to allocate memory for buf %u",
 			 index);
 
 	buf->index = index;
-	buf->len = 8192;
+
+	/* see above */
+	buf->len = getpagesize();
 	buf->valid_bytes = buf->len;
 
 	return 0;
@@ -258,12 +262,17 @@ int usrp_dma_buf_enqueue(struct usrp_dma_ctx *ctx, struct usrp_dma_buf *buf)
 {
 	struct usrp_buffer breq;
 	fd_set fds;
-	struct timeval tv;
 
 	memset(&breq, 0, sizeof(breq));
 	breq.type = __to_buf_type(ctx);
-	breq.memory = USRP_MEMORY_MMAP;
+	breq.memory = ctx->mem_type;
 	breq.index = buf->index;
+
+	if (ctx->mem_type == USRP_MEMORY_USERPTR) {
+		breq.m.userptr = (unsigned long)buf->mem;
+		breq.length = buf->len;
+	}
+
 	if (ctx->dir == TX)
 		breq.bytesused = buf->valid_bytes;
 
@@ -274,7 +283,7 @@ struct usrp_dma_buf *usrp_dma_buf_dequeue(struct usrp_dma_ctx *ctx)
 {
 	struct usrp_buffer breq;
 	struct usrp_dma_buf *buf;
-	int err;
+	int err, i;
 	fd_set fds;
 	struct timeval tv;
 
@@ -301,13 +310,23 @@ struct usrp_dma_buf *usrp_dma_buf_dequeue(struct usrp_dma_ctx *ctx)
 
 	memset(&breq, 0, sizeof(breq));
 	breq.type = __to_buf_type(ctx);
-	breq.memory = USRP_MEMORY_MMAP;
+
+	breq.memory = ctx->mem_type;
 
 	err = __usrp_dma_ioctl(ctx->fd, USRPIOC_DQBUF, &breq);
 	if (err)
 		return NULL;
 
-	buf = ctx->bufs + breq.index;
+	if (ctx->mem_type == USRP_MEMORY_MMAP) {
+		buf = ctx->bufs + breq.index;
+	} else if (ctx->mem_type == USRP_MEMORY_USERPTR) {
+		for (i = 0; i < ctx->nbufs; i++)
+			if (breq.m.userptr == (unsigned long)ctx->bufs[i].mem
+			    && breq.length == ctx->bufs[i].len)
+				break;
+		buf = ctx->bufs + i;
+	}
+
 	if (ctx->dir == RX)
 		buf->valid_bytes = breq.bytesused;
 
