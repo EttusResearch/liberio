@@ -9,15 +9,17 @@ LT_INIT
 
 AC_PROG_CC
 AC_PROG_LIBTOOL
+AC_PROG_INSTALL
 
-AC_CHECK_HEADERS([fnctl.h])
+AC_CHECK_HEADERS([fcntl.h])
 AC_CHECK_HEADERS([unistd.h])
 AC_CHECK_HEADERS([sys/ioctl.h])
 AC_CHECK_HEADERS([sys/select.h])
 AC_CHECK_HEADERS([sys/mman.h])
 AC_CHECK_HEADERS([sys/socket.h])
 
-AC_OUTPUT([Makefile])
+AC_CONFIG_FILES(Makefile)
+AC_OUTPUT
 
 
 cat <<EOF
