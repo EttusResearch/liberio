@@ -46,6 +46,8 @@ struct usrp_dma_ctx {
 
 void usrp_dma_init(int loglevel);
 
+const char *usrp_dma_ctx_get_type(const struct usrp_dma_ctx *ctx);
+
 struct usrp_dma_ctx *usrp_dma_ctx_alloc(const char *file,
 					const enum usrp_dma_direction dir,
 					enum usrp_memory mem_type);

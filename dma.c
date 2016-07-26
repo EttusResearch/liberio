@@ -177,6 +177,21 @@ static const struct usrp_dma_buf_ops __usrp_dma_buf_dmabuf_ops = {
 	.release	=	__usrp_dma_buf_release_dmabuf,
 };
 
+static const char * memstring[] = {
+	[USRP_MEMORY_MMAP] = "MMAP",
+	[USRP_MEMORY_USERPTR] = "USERPTR",
+	[USRP_MEMORY_DMABUF] = "DMABUF",
+};
+
+const char *usrp_dma_ctx_get_type(const struct usrp_dma_ctx *ctx)
+{
+	if ((ctx->mem_type < USRP_MEMORY_MMAP) ||
+	    (ctx->mem_type > USRP_MEMORY_DMABUF))
+		return "UNKNOWN";
+
+	return memstring[ctx->mem_type];
+}
+
 struct usrp_dma_ctx *usrp_dma_ctx_alloc(const char *file,
 					const enum usrp_dma_direction dir,
 					enum usrp_memory mem_type)

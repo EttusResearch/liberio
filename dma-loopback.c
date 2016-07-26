@@ -46,6 +46,7 @@ static void print_usage(void)
 	       "        -n (number of iterations) e.g. 25000\n"
 	       "        -b (number of buffers) e.g. 128\n"
 	       "        -u (use userptr allocation for TX)\n\n"
+	       "        -p (use userptr allocation for RX)\n\n"
 	       "        -h (print this help message)\n\n"
 	       "Example:\n"
 	       "$ ./dma-loopack -n 25000 -b 128\n");
@@ -125,7 +126,8 @@ void *rx_thread(void *args)
 			goto out_free;
 	}
 
-	log_info(__func__, "Starting streaming");
+	log_info(__func__, "Starting streaming (%s)",
+		 usrp_dma_ctx_get_type(rx_ctx));
 	err = usrp_dma_ctx_start_streaming(rx_ctx);
 	if (err) {
 		log_crit(__func__, "failed to start streaming");
@@ -198,7 +200,8 @@ void *tx_thread(void *args)
 		goto out_free;
 	}
 
-	log_info(__func__, "Starting streaming");
+	log_info(__func__, "Starting streaming (%s)",
+		 usrp_dma_ctx_get_type(tx_ctx));
 	err = usrp_dma_ctx_start_streaming(tx_ctx);
 	if (err) {
 		log_crit(__func__, "failed to start streaming");
@@ -248,7 +251,7 @@ int main(int argc, char *argv[])
 
 	usrp_dma_init(3);
 
-	while ((opt = getopt(argc, argv, "n:b:u")) != -1) {
+	while ((opt = getopt(argc, argv, "n:b:up")) != -1) {
 		switch (opt) {
 		case 'b':
 			nbufs = atoi(optarg);
@@ -258,6 +261,9 @@ int main(int argc, char *argv[])
 			break;
 		case 'u':
 			tx_type = USRP_MEMORY_USERPTR;
+			break;
+		case 'p':
+			rx_type = USRP_MEMORY_USERPTR;
 			break;
 		default:
 			print_usage();
