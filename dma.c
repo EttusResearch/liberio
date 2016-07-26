@@ -156,10 +156,14 @@ static void __usrp_dma_buf_release_userptr(struct usrp_dma_buf *buf)
 static int __usrp_dma_buf_init_dmabuf(struct usrp_dma_ctx *ctx,
 				       struct usrp_dma_buf *buf, size_t index)
 {
+	log_crit(__func__, "Not implemented");
+
+	return -ENOTTY;
 }
 
 static void __usrp_dma_buf_release_dmabuf(struct usrp_dma_buf *buf)
 {
+	log_crit(__func__, "Not implemented");
 }
 
 static const struct usrp_dma_buf_ops __usrp_dma_buf_mmap_ops = {
