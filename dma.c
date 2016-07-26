@@ -153,6 +153,15 @@ static void __usrp_dma_buf_release_userptr(struct usrp_dma_buf *buf)
 		free(buf->mem);
 }
 
+static int __usrp_dma_buf_init_dmabuf(struct usrp_dma_ctx *ctx,
+				       struct usrp_dma_buf *buf, size_t index)
+{
+}
+
+static void __usrp_dma_buf_release_dmabuf(struct usrp_dma_buf *buf)
+{
+}
+
 static const struct usrp_dma_buf_ops __usrp_dma_buf_mmap_ops = {
 	.init		=	__usrp_dma_buf_init_mmap,
 	.release	=	__usrp_dma_buf_release_mmap,
@@ -161,6 +170,11 @@ static const struct usrp_dma_buf_ops __usrp_dma_buf_mmap_ops = {
 static const struct usrp_dma_buf_ops __usrp_dma_buf_userptr_ops = {
 	.init		=	__usrp_dma_buf_init_userptr,
 	.release	=	__usrp_dma_buf_release_userptr,
+};
+
+static const struct usrp_dma_buf_ops __usrp_dma_buf_dmabuf_ops = {
+	.init		=	__usrp_dma_buf_init_dmabuf,
+	.release	=	__usrp_dma_buf_release_dmabuf,
 };
 
 struct usrp_dma_ctx *usrp_dma_ctx_alloc(const char *file,
