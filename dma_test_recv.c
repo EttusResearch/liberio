@@ -82,7 +82,9 @@ int main(int argc, char *argv[])
 	}
 	*/
 
-	log_info(__func__, "Starting streaming");
+	log_info(__func__, "Starting streaming (%s)",
+		 usrp_dma_ctx_get_type(ctx));
+
 	err = usrp_dma_ctx_start_streaming(ctx);
 	if (err) {
 		log_crit(__func__, "failed to start streaming\n");
