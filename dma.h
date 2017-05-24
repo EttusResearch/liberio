@@ -64,7 +64,11 @@ static inline void usrp_dma_ctx_get(struct usrp_dma_ctx *ctx)
 
 int usrp_dma_request_buffers(struct usrp_dma_ctx *ctx, size_t num_buffers);
 
-struct usrp_dma_buf *usrp_dma_buf_dequeue(struct usrp_dma_ctx *ctx);
+/**
+ * @param ctx USRP DMA Context
+ * @param timeout Timeout to dequeue buffer in microseconds
+ */
+struct usrp_dma_buf *usrp_dma_buf_dequeue(struct usrp_dma_ctx *ctx, int timeout);
 
 int usrp_dma_buf_enqueue(struct usrp_dma_ctx *ctx,
 			 struct usrp_dma_buf *buf);

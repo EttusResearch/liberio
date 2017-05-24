@@ -312,7 +312,7 @@ int usrp_dma_buf_enqueue(struct usrp_dma_ctx *ctx, struct usrp_dma_buf *buf)
 	return __usrp_dma_ioctl(ctx->fd, USRPIOC_QBUF, &breq);
 }
 
-struct usrp_dma_buf *usrp_dma_buf_dequeue(struct usrp_dma_ctx *ctx)
+struct usrp_dma_buf *usrp_dma_buf_dequeue(struct usrp_dma_ctx *ctx, int timeout)
 {
 	struct usrp_buffer breq;
 	struct usrp_dma_buf *buf;
@@ -323,8 +323,13 @@ struct usrp_dma_buf *usrp_dma_buf_dequeue(struct usrp_dma_ctx *ctx)
 	FD_ZERO(&fds);
 	FD_SET(ctx->fd, &fds);
 
-	tv.tv_sec = 0;
-	tv.tv_usec = 250000;
+	if (timeout >= 0) {
+		tv.tv_sec = timeout / 1000000;
+		tv.tv_sec = timeout % 1000000;
+	} else {
+		tv.tv_sec = 0;
+		tv.tv_usec = 250000;
+	}
 
 	if (ctx->dir == RX)
 		err = select(ctx->fd + 1, &fds, NULL, NULL, &tv);
