@@ -2,8 +2,7 @@
 #define _LINUX_LIST_H
 
 #include <stdio.h>
-
-#define offsetof(TYPE, MEMBER) ((size_t) &((TYPE *)0)->MEMBER)
+#include <stddef.h>
 
 /**
  * container_of - cast a member of a structure out to the containing structure
