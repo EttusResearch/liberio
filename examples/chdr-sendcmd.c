@@ -8,13 +8,13 @@
 #include <sys/ioctl.h>
 #include <time.h>
 
-#include "v4l2-stuff.h"
-#include "dma.h"
-#include "util.h"
-#include "log.h"
+#include <liberio/dma.h>
+#include "../src/log.h"
+
+#include <arpa/inet.h>
 
 #define NBUFS 32
-#define NITER 2500000
+#define NITER 250
 //#define NITER 1
 
 
@@ -31,16 +31,24 @@ static uint64_t get_time(void)
 	return ((uint64_t)ts.tv_sec) * 1000 * 1000 * 1000 + ts.tv_nsec;
 }
 
-static void fill_buf(struct usrp_dma_buf *buf, uint64_t val)
+static void fill_buf(struct usrp_dma_buf *buf, uint16_t seqno)
 {
-	uint64_t *vals = buf->mem;
+	uint32_t *vals = buf->mem;
 
 	//printf("filling buffer %u\n", buf->index);
+       	vals[0]	= 0x00000250;
+	vals[1] = 0x80010010;
+	vals[2] = 0x00000000;
+       	vals[3] = 0x0000007f;
+	//vals[0] = 0x8001001000000230 | (((uint64_t) seqno & 0xFFF) << 48);
+	/*vals[0] = htonl(0x00000230);
+	vals[0] <<= 32;
+	vals[0] |= htonl(0x80000010 | ((seqno & 0xFFF) << 16));
+	vals[1] = htonl(0x0000007F);
+	vals[1] <<= 32;*/
+	//vals[1] = 127;
 
-	for (size_t i = 0; i < buf->len / 8; i++)
-		vals[i] = val;
-
-	buf->valid_bytes = buf->len;
+	buf->valid_bytes = 16;
 }
 
 int main(int argc, char *argv[])
@@ -53,7 +61,7 @@ int main(int argc, char *argv[])
 
 	usrp_dma_init(3);
 
-	ctx = usrp_dma_ctx_alloc("/dev/tx-dma", TX, USRP_MEMORY_MMAP);
+	ctx = usrp_dma_ctx_alloc("/dev/tx-dma0", TX, USRP_MEMORY_MMAP);
 	if (!ctx)
 		return EXIT_FAILURE;
 
@@ -75,13 +83,14 @@ int main(int argc, char *argv[])
 	transmitted = 0;
 	start = get_time();
 
-	for (size_t i = 0; i < NITER; ++i) {
+//	for (size_t i = 0; i < NITER; ++i) {
+	size_t i = 0;
 		struct usrp_dma_buf *buf;
 
 		/* buffers start out in dequeued state,
 		 * so first ctx->nbufs times we don't need to deq */
 		if (i >= ctx->nbufs) {
-			buf = usrp_dma_buf_dequeue(ctx);
+			buf = usrp_dma_buf_dequeue(ctx, 250000);
 			if (!buf) {
 				log_warn(__func__, "failed to get buffer");
 				goto out_free;
@@ -91,14 +100,14 @@ int main(int argc, char *argv[])
 		}
 
 		fill_buf(buf, i);
-		transmitted += buf->len;
+		transmitted += buf->valid_bytes;
 
 		err = usrp_dma_buf_enqueue(ctx, buf);
 		if (err) {
 			log_warn(__func__, "failed to get buffer");
 			goto out_free;
 		}
-	}
+//	}
 
 	end = get_time();
 

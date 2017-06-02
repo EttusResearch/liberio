@@ -8,13 +8,12 @@
 #include <sys/ioctl.h>
 #include <time.h>
 
-#include "v4l2-stuff.h"
-#include "dma.h"
+#include <liberio/dma.h>
 
-#include "log.h"
+#include "../src/log.h"
 
 #define NBUFS 128
-#define NITER 2500000
+#define NITER 250
 //#define NITER 3
 
 static uint64_t get_time(void)
@@ -36,13 +35,13 @@ static void print_buf(struct usrp_dma_buf *buf)
 
 	log_debug(__func__, "-- Printing buffer %u --", buf->index);
 
-	for (size_t i = 0; i < 10; i++)
-		log_debug(__func__, "%llx", vals[i]);
+	for (size_t i = 0; (i < 10) && (8*i < buf->valid_bytes); i++)
+		log_debug(__func__, "%08llx", vals[i]);
 
 	log_debug(__func__, "[...]");
 
-	for (size_t i = 500; i < 512; i++)
-		log_debug(__func__, "%llx", vals[i]);
+	for (size_t i = 500; (i < 512) && (8*i < buf->valid_bytes); i++)
+		log_debug(__func__, "%08llx", vals[i]);
 
 	//buf->valid_bytes = buf->len;
 }
@@ -59,7 +58,7 @@ int main(int argc, char *argv[])
 
 	usrp_dma_init(3);
 
-	ctx = usrp_dma_ctx_alloc("/dev/rx-dma", RX, USRP_MEMORY_MMAP);
+	ctx = usrp_dma_ctx_alloc("/dev/rx-dma0", RX, USRP_MEMORY_MMAP);
 	if (!ctx)
 		return EXIT_FAILURE;
 
@@ -71,16 +70,18 @@ int main(int argc, char *argv[])
 
 	/* queue up all the buffers, as they start out owned
 	 * by the application ... */
-	/*
+	
 	for (size_t i = 0; i < ctx->nbufs; i++) {
+		/*
 		//printf("-- Queing up buffer %u\n", i);
 		err = usrp_dma_buf_enqueue(ctx, ctx->bufs + i);
 		if (err) {
 			log_warn(__func__, "failed to get buffer");
 			goto out_free;
 		}
+		*/
+		ctx->bufs[i].valid_bytes = 16;
 	}
-	*/
 
 	log_info(__func__, "Starting streaming (%s)",
 		 usrp_dma_ctx_get_type(ctx));
@@ -91,8 +92,6 @@ int main(int argc, char *argv[])
 		goto out_free;
 	}
 
-	//getchar();
-
 	received = 0;
 	start = get_time();
 
@@ -102,23 +101,13 @@ int main(int argc, char *argv[])
 		if (i < ctx->nbufs)
 			usrp_dma_buf_enqueue(ctx, ctx->bufs + i);
 
-		buf = usrp_dma_buf_dequeue(ctx);
+		buf = usrp_dma_buf_dequeue(ctx, -1);
 		if (!buf) {
 			log_warn(__func__, "failed to get buffer");
 			goto out_free;
 		}
 
-		vals = buf->mem;
-		if (!i) {
-			last = vals[0];
-		} else {
-			if ((vals[0] - last) != 1)
-				log_warn(__func__,
-					 "Missed a packet, gap = %llu",
-					 vals[0] - last);
-			last = vals[0];
-		}
-
+		print_buf(buf);
 		received += buf->len;
 
 

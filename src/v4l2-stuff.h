@@ -37,13 +37,6 @@ enum usrp_buf_type {
 	USRP_BUF_TYPE_PRIVATE              = 0x80,
 };
 
-enum usrp_memory {
-	USRP_MEMORY_MMAP             = 1,
-	USRP_MEMORY_USERPTR          = 2,
-	USRP_MEMORY_OVERLAY          = 3,
-	USRP_MEMORY_DMABUF           = 4,
-};
-
 struct usrp_requestbuffers {
 	__u32			count;
 	__u32			type;		/* enum usrp_buf_type */

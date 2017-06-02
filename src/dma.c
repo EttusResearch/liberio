@@ -15,7 +15,7 @@
 
 
 #include "v4l2-stuff.h"
-#include "dma.h"
+#include <liberio/dma.h>
 #include "util.h"
 #include "log.h"
 
@@ -74,7 +74,7 @@ static void __usrp_dma_ctx_free(const struct ref *ref)
 	if (!ctx)
 		return;
 
-	for (i = ctx->nbufs; i > 0; i--)
+	for (i = ctx->nbufs - 1; i > 0; i--)
 		ctx->ops->release(ctx->bufs + i);
 
 	/*
@@ -216,6 +216,7 @@ struct usrp_dma_ctx *usrp_dma_ctx_alloc(const char *file,
 	ctx->bufs = NULL;
 	ctx->nbufs = 0;
 	ctx->mem_type = mem_type;
+	INIT_LIST_HEAD(&ctx->free_bufs);
 
 	if (mem_type == USRP_MEMORY_MMAP) {
 		ctx->ops = &__usrp_dma_buf_mmap_ops;
@@ -227,6 +228,8 @@ struct usrp_dma_ctx *usrp_dma_ctx_alloc(const char *file,
 	}
 
 	ctx->refcnt = (struct ref){__usrp_dma_ctx_free, 1};
+	usrp_dma_ctx_stop_streaming(ctx);
+	usrp_dma_request_buffers(ctx, 0);
 
 	return ctx;
 
@@ -257,7 +260,8 @@ int usrp_dma_request_buffers(struct usrp_dma_ctx *ctx, size_t num_buffers)
 
 	err = __usrp_dma_ioctl(ctx->fd, USRPIOC_REQBUFS, &req);
 	if (err) {
-		log_crit(__func__, "failed to request buffers (num_buffers was %u)", num_buffers);
+		log_crit(__func__, "failed to request buffers (num_buffers was %u) %d", num_buffers, err);
+		perror("foo");
 		return err;
 	}
 
@@ -274,6 +278,8 @@ int usrp_dma_request_buffers(struct usrp_dma_ctx *ctx, size_t num_buffers)
 				req.count);
 			goto out_free;
 		}
+		if (ctx->dir == TX)
+			list_add(&ctx->bufs[i].node, &ctx->free_bufs);
 	}
 
 	ctx->nbufs = i;
@@ -306,7 +312,8 @@ int usrp_dma_buf_enqueue(struct usrp_dma_ctx *ctx, struct usrp_dma_buf *buf)
 		breq.length = buf->len;
 	}
 
-	if (ctx->dir == TX)
+	/* HACK: Using valid_bytes for RX too
+	if (ctx->dir == TX) */
 		breq.bytesused = buf->valid_bytes;
 
 	return __usrp_dma_ioctl(ctx->fd, USRPIOC_QBUF, &breq);
@@ -319,22 +326,28 @@ struct usrp_dma_buf *usrp_dma_buf_dequeue(struct usrp_dma_ctx *ctx, int timeout)
 	int err, i;
 	fd_set fds;
 	struct timeval tv;
+	struct timeval *tv_ptr = &tv;
+
+	if (!list_empty(&ctx->free_bufs)) { // Should only happen with ctx->dir == TX (see usrp_dma_request_buffers)
+		buf = list_first_entry(&ctx->free_bufs, struct usrp_dma_buf, node);
+		list_del(&buf->node);
+		return buf;
+	}
 
 	FD_ZERO(&fds);
 	FD_SET(ctx->fd, &fds);
 
 	if (timeout >= 0) {
 		tv.tv_sec = timeout / 1000000;
-		tv.tv_sec = timeout % 1000000;
+		tv.tv_usec = timeout % 1000000;
 	} else {
-		tv.tv_sec = 0;
-		tv.tv_usec = 250000;
+		tv_ptr = NULL;
 	}
 
 	if (ctx->dir == RX)
-		err = select(ctx->fd + 1, &fds, NULL, NULL, &tv);
+		err = select(ctx->fd + 1, &fds, NULL, NULL, tv_ptr);
 	else
-		err = select(ctx->fd + 1, NULL, &fds, NULL, &tv);
+		err = select(ctx->fd + 1, NULL, &fds, NULL, tv_ptr);
 
 	if (!err) {
 		log_warnx(__func__, "select timeout");

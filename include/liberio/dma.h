@@ -16,7 +16,19 @@
 #ifndef DMA_H
 #define DMA_H
 
-#include "ref.h"
+#ifdef __cplusplus
+extern "C"
+{
+#endif 
+#include <liberio/ref.h>
+#include <liberio/list.h>
+
+enum usrp_memory {
+	USRP_MEMORY_MMAP             = 1,
+	USRP_MEMORY_USERPTR          = 2,
+	USRP_MEMORY_OVERLAY          = 3,
+	USRP_MEMORY_DMABUF           = 4,
+};
 
 enum usrp_dma_direction {
 	TX = 0,
@@ -28,6 +40,7 @@ struct usrp_dma_buf {
 	void *mem;
 	size_t len;
 	size_t valid_bytes;
+	struct list_head node;
 };
 
 struct usrp_dma_ctx {
@@ -36,6 +49,7 @@ struct usrp_dma_ctx {
 
 	struct usrp_dma_buf *bufs;
 	size_t nbufs;
+	struct list_head free_bufs;
 
 	struct ref refcnt;
 
@@ -77,4 +91,7 @@ int usrp_dma_ctx_start_streaming(struct usrp_dma_ctx *ctx);
 
 int usrp_dma_ctx_stop_streaming(struct usrp_dma_ctx *ctx);
 
+#ifdef __cplusplus
+}
+#endif 
 #endif /* DMA_H */
