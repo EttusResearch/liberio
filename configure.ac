@@ -19,7 +19,7 @@ AC_CHECK_HEADERS([sys/select.h])
 AC_CHECK_HEADERS([sys/mman.h])
 AC_CHECK_HEADERS([sys/socket.h])
 
-AC_CONFIG_FILES([Makefile include/Makefile src/Makefile examples/Makefile])
+AC_CONFIG_FILES([Makefile include/Makefile src/Makefile examples/Makefile liberio.pc])
 AC_OUTPUT
 
 
