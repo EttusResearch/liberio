@@ -20,6 +20,7 @@
 extern "C"
 {
 #endif 
+#include <stdint.h>
 #include <liberio/ref.h>
 #include <liberio/list.h>
 
