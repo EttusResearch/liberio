@@ -43,7 +43,7 @@ struct usrp_dma_buf {
 	struct list_head node;
 };
 
-struct usrp_dma_ctx {
+struct usrp_dma_chan {
 	int fd;
 	enum usrp_dma_direction dir;
 
@@ -60,38 +60,38 @@ struct usrp_dma_ctx {
 
 void usrp_dma_init(int loglevel);
 
-const char *usrp_dma_ctx_get_type(const struct usrp_dma_ctx *ctx);
+const char *usrp_dma_chan_get_type(const struct usrp_dma_chan *chan);
 
-struct usrp_dma_ctx *usrp_dma_ctx_alloc(const char *file,
+struct usrp_dma_chan *usrp_dma_chan_alloc(const char *file,
 					const enum usrp_dma_direction dir,
 					enum usrp_memory mem_type);
 
-static inline void usrp_dma_ctx_put(struct usrp_dma_ctx *ctx)
+static inline void usrp_dma_chan_put(struct usrp_dma_chan *chan)
 {
-	ref_dec(&ctx->refcnt);
+	ref_dec(&chan->refcnt);
 }
 
-static inline void usrp_dma_ctx_get(struct usrp_dma_ctx *ctx)
+static inline void usrp_dma_chan_get(struct usrp_dma_chan *chan)
 {
-	ref_inc(&ctx->refcnt);
+	ref_inc(&chan->refcnt);
 }
 
-int usrp_dma_request_buffers(struct usrp_dma_ctx *ctx, size_t num_buffers);
+int usrp_dma_request_buffers(struct usrp_dma_chan *chan, size_t num_buffers);
 
 /**
- * @param ctx USRP DMA Context
+ * @param chan USRP DMA Context
  * @param timeout Timeout to dequeue buffer in microseconds
  */
-struct usrp_dma_buf *usrp_dma_buf_dequeue(struct usrp_dma_ctx *ctx, int timeout);
+struct usrp_dma_buf *usrp_dma_buf_dequeue(struct usrp_dma_chan *chan, int timeout);
 
-int usrp_dma_buf_enqueue(struct usrp_dma_ctx *ctx,
+int usrp_dma_buf_enqueue(struct usrp_dma_chan *chan,
 			 struct usrp_dma_buf *buf);
 
-int usrp_dma_ctx_start_streaming(struct usrp_dma_ctx *ctx);
+int usrp_dma_chan_start_streaming(struct usrp_dma_chan *chan);
 
-int usrp_dma_ctx_stop_streaming(struct usrp_dma_ctx *ctx);
+int usrp_dma_chan_stop_streaming(struct usrp_dma_chan *chan);
 
 #ifdef __cplusplus
 }
-#endif 
+#endif
 #endif /* DMA_H */

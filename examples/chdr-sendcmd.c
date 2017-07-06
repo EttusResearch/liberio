@@ -53,7 +53,7 @@ static void fill_buf(struct usrp_dma_buf *buf, uint16_t seqno)
 
 int main(int argc, char *argv[])
 {
-	struct usrp_dma_ctx *ctx;
+	struct usrp_dma_chan *ctx;
 	int fd;
 	int err = 0;
 	uint64_t start, end;
@@ -61,7 +61,7 @@ int main(int argc, char *argv[])
 
 	usrp_dma_init(3);
 
-	ctx = usrp_dma_ctx_alloc("/dev/tx-dma0", TX, USRP_MEMORY_MMAP);
+	ctx = usrp_dma_chan_alloc("/dev/tx-dma0", TX, USRP_MEMORY_MMAP);
 	if (!ctx)
 		return EXIT_FAILURE;
 
@@ -72,9 +72,9 @@ int main(int argc, char *argv[])
 	}
 
 	log_info(__func__, "Starting streaming (%s)",
-		 usrp_dma_ctx_get_type(ctx));
+		 usrp_dma_chan_get_type(ctx));
 
-	err = usrp_dma_ctx_start_streaming(ctx);
+	err = usrp_dma_chan_start_streaming(ctx);
 	if (err) {
 		log_crit(__func__, "failed to start streaming");
 		goto out_free;
@@ -112,13 +112,13 @@ int main(int argc, char *argv[])
 	end = get_time();
 
 	log_info(__func__, "Stopping streaming");
-	err = usrp_dma_ctx_stop_streaming(ctx);
+	err = usrp_dma_chan_stop_streaming(ctx);
 	if (err) {
 		log_crit(__func__, "failed to stop streaming");
 		goto out_free;
 	}
 
-	usrp_dma_ctx_put(ctx);
+	usrp_dma_chan_put(ctx);
 
 	log_info(__func__, "Transmitted %llu bytes in %llu ns -> %f MB/s",
 	       transmitted, (end - start),
@@ -128,8 +128,8 @@ int main(int argc, char *argv[])
 
 out_free:
 out_close:
-	usrp_dma_ctx_stop_streaming(ctx);
-	usrp_dma_ctx_put(ctx);
+	usrp_dma_chan_stop_streaming(ctx);
+	usrp_dma_chan_put(ctx);
 
 	return err;
 }

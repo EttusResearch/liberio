@@ -34,7 +34,7 @@
 #define USRP_MAX_FRAMES 128
 
 struct usrp_dma_buf_ops {
-	int(*init)(struct usrp_dma_ctx *, struct usrp_dma_buf *, size_t);
+	int(*init)(struct usrp_dma_chan *, struct usrp_dma_buf *, size_t);
 	void(*release)(struct usrp_dma_buf *);
 };
 
@@ -43,9 +43,9 @@ void usrp_dma_init(int loglevel)
 	log_init(loglevel, "usrp_dma");
 }
 
-static inline enum usrp_buf_type __to_buf_type(struct usrp_dma_ctx *ctx)
+static inline enum usrp_buf_type __to_buf_type(struct usrp_dma_chan *chan)
 {
-	return (ctx->dir == TX) ? USRP_BUF_TYPE_OUTPUT : USRP_BUF_TYPE_INPUT;
+	return (chan->dir == TX) ? USRP_BUF_TYPE_OUTPUT : USRP_BUF_TYPE_INPUT;
 }
 
 static int __usrp_dma_ioctl(int fd, unsigned long req, void *arg)
@@ -65,44 +65,44 @@ static void __usrp_dma_buf_release_mmap(struct usrp_dma_buf *buf)
 		munmap(buf->mem, buf->len);
 }
 
-static void __usrp_dma_ctx_free(const struct ref *ref)
+static void __usrp_dma_chan_free(const struct ref *ref)
 {
 	size_t i;
 	int err;
-	struct usrp_dma_ctx *ctx = container_of(ref, struct usrp_dma_ctx,
+	struct usrp_dma_chan *chan = container_of(ref, struct usrp_dma_chan,
 						refcnt);
-	if (!ctx)
+	if (!chan)
 		return;
 
-	for (i = ctx->nbufs - 1; i > 0; i--)
-		ctx->ops->release(ctx->bufs + i);
+	for (i = chan->nbufs - 1; i > 0; i--)
+		chan->ops->release(chan->bufs + i);
 
 	/*
 	for (i = 0; i < RETRIES; i++) {
-		err = usrp_dma_request_buffers(ctx, 0);
+		err = usrp_dma_request_buffers(chan, 0);
 		if (!err)
 			break;
 		sleep(0.5);
 	}
 	*/
 
-	close(ctx->fd);
-	free(ctx);
+	close(chan->fd);
+	free(chan);
 }
 
 
-static int __usrp_dma_buf_init_mmap(struct usrp_dma_ctx *ctx,
+static int __usrp_dma_buf_init_mmap(struct usrp_dma_chan *chan,
 				    struct usrp_dma_buf *buf, size_t index)
 {
 	struct usrp_buffer breq;
 	int err;
 
 	memset(&breq, 0, sizeof(breq));
-	breq.type = __to_buf_type(ctx);
+	breq.type = __to_buf_type(chan);
 	breq.index = index;
 	breq.memory = USRP_MEMORY_MMAP;
 
-	err = __usrp_dma_ioctl(ctx->fd, USRPIOC_QUERYBUF, &breq);
+	err = __usrp_dma_ioctl(chan->fd, USRPIOC_QUERYBUF, &breq);
 	if (err) {
 		log_warn(__func__,
 			"failed to create usrp_dma_buf for index %u", index);
@@ -115,7 +115,7 @@ static int __usrp_dma_buf_init_mmap(struct usrp_dma_ctx *ctx,
 
 	buf->mem = mmap(NULL, breq.length,
 			PROT_READ | PROT_WRITE,
-			MAP_SHARED, ctx->fd,
+			MAP_SHARED, chan->fd,
 			breq.m.offset);
 	if (buf->mem == MAP_FAILED) {
 		log_warn(__func__, "failed to mmap buffer with index %u", index);
@@ -125,7 +125,7 @@ static int __usrp_dma_buf_init_mmap(struct usrp_dma_ctx *ctx,
 	return err;
 }
 
-static int __usrp_dma_buf_init_userptr(struct usrp_dma_ctx *ctx,
+static int __usrp_dma_buf_init_userptr(struct usrp_dma_chan *chan,
 				       struct usrp_dma_buf *buf, size_t index)
 {
 	struct usrp_buffer_breq;
@@ -153,7 +153,7 @@ static void __usrp_dma_buf_release_userptr(struct usrp_dma_buf *buf)
 		free(buf->mem);
 }
 
-static int __usrp_dma_buf_init_dmabuf(struct usrp_dma_ctx *ctx,
+static int __usrp_dma_buf_init_dmabuf(struct usrp_dma_chan *chan,
 				       struct usrp_dma_buf *buf, size_t index)
 {
 	log_crit(__func__, "Not implemented");
@@ -187,64 +187,64 @@ static const char * memstring[] = {
 	[USRP_MEMORY_DMABUF] = "DMABUF",
 };
 
-const char *usrp_dma_ctx_get_type(const struct usrp_dma_ctx *ctx)
+const char *usrp_dma_chan_get_type(const struct usrp_dma_chan *chan)
 {
-	if ((ctx->mem_type < USRP_MEMORY_MMAP) ||
-	    (ctx->mem_type > USRP_MEMORY_DMABUF))
+	if ((chan->mem_type < USRP_MEMORY_MMAP) ||
+	    (chan->mem_type > USRP_MEMORY_DMABUF))
 		return "UNKNOWN";
 
-	return memstring[ctx->mem_type];
+	return memstring[chan->mem_type];
 }
 
-struct usrp_dma_ctx *usrp_dma_ctx_alloc(const char *file,
+struct usrp_dma_chan *usrp_dma_chan_alloc(const char *file,
 					const enum usrp_dma_direction dir,
 					enum usrp_memory mem_type)
 {
-	struct usrp_dma_ctx *ctx;
+	struct usrp_dma_chan *chan;
 
-	ctx = malloc(sizeof(*ctx));
-	if (!ctx)
+	chan = malloc(sizeof(*chan));
+	if (!chan)
 		return NULL;
 
-	ctx->fd = open(file, O_RDWR);
-	if (ctx->fd < 0) {
+	chan->fd = open(file, O_RDWR);
+	if (chan->fd < 0) {
 		log_warn(__func__, "Failed to open device");
 		goto out_free;
 	}
 
-	ctx->dir = dir;
-	ctx->bufs = NULL;
-	ctx->nbufs = 0;
-	ctx->mem_type = mem_type;
-	INIT_LIST_HEAD(&ctx->free_bufs);
+	chan->dir = dir;
+	chan->bufs = NULL;
+	chan->nbufs = 0;
+	chan->mem_type = mem_type;
+	INIT_LIST_HEAD(&chan->free_bufs);
 
 	if (mem_type == USRP_MEMORY_MMAP) {
-		ctx->ops = &__usrp_dma_buf_mmap_ops;
+		chan->ops = &__usrp_dma_buf_mmap_ops;
 	} else if (mem_type == USRP_MEMORY_USERPTR){
-		ctx->ops = &__usrp_dma_buf_userptr_ops;
+		chan->ops = &__usrp_dma_buf_userptr_ops;
 	} else {
 		log_crit(__func__, "Invalid memory type specified");
 		return NULL;
 	}
 
-	ctx->refcnt = (struct ref){__usrp_dma_ctx_free, 1};
-	usrp_dma_ctx_stop_streaming(ctx);
-	usrp_dma_request_buffers(ctx, 0);
+	chan->refcnt = (struct ref){__usrp_dma_chan_free, 1};
+	usrp_dma_chan_stop_streaming(chan);
+	usrp_dma_request_buffers(chan, 0);
 
-	return ctx;
+	return chan;
 
 out_free:
-	free(ctx);
+	free(chan);
 
 	return NULL;
 }
 
-int usrp_dma_request_buffers(struct usrp_dma_ctx *ctx, size_t num_buffers)
+int usrp_dma_request_buffers(struct usrp_dma_chan *chan, size_t num_buffers)
 {
 	struct usrp_requestbuffers req;
 	int err;
 	size_t i;
-	enum usrp_buf_type type = __to_buf_type(ctx);
+	enum usrp_buf_type type = __to_buf_type(chan);
 
 	if (num_buffers > USRP_MAX_FRAMES) {
 		log_warnx(__func__, "tried to allocate %u buffers, max is %u"
@@ -255,71 +255,71 @@ int usrp_dma_request_buffers(struct usrp_dma_ctx *ctx, size_t num_buffers)
 
 	memset(&req, 0, sizeof(req));
 	req.type = type;
-	req.memory = ctx->mem_type;
+	req.memory = chan->mem_type;
 	req.count = num_buffers;
 
-	err = __usrp_dma_ioctl(ctx->fd, USRPIOC_REQBUFS, &req);
+	err = __usrp_dma_ioctl(chan->fd, USRPIOC_REQBUFS, &req);
 	if (err) {
 		log_crit(__func__, "failed to request buffers (num_buffers was %u) %d", num_buffers, err);
 		perror("foo");
 		return err;
 	}
 
-	ctx->bufs = calloc(req.count, sizeof(struct usrp_dma_buf));
-	if (!ctx->bufs) {
+	chan->bufs = calloc(req.count, sizeof(struct usrp_dma_buf));
+	if (!chan->bufs) {
 		log_crit(__func__, "failed to alloc mem for buffers");
 		return -ENOMEM;
 	}
 
 	for (i = 0; i < req.count; i++) {
-		err = ctx->ops->init(ctx, ctx->bufs + i, i);
+		err = chan->ops->init(chan, chan->bufs + i, i);
 		if (err) {
 			log_crit(__func__, "failed to init buffer (%u/%u)", i,
 				req.count);
 			goto out_free;
 		}
-		if (ctx->dir == TX)
-			list_add(&ctx->bufs[i].node, &ctx->free_bufs);
+		if (chan->dir == TX)
+			list_add(&chan->bufs[i].node, &chan->free_bufs);
 	}
 
-	ctx->nbufs = i;
+	chan->nbufs = i;
 
 	return 0;
 
 out_free:
 	while (i) {
-		ctx->ops->release(ctx->bufs + i);
+		chan->ops->release(chan->bufs + i);
 		i--;
 	}
 
-	free(ctx->bufs);
+	free(chan->bufs);
 
 	return err;
 }
 
-int usrp_dma_buf_enqueue(struct usrp_dma_ctx *ctx, struct usrp_dma_buf *buf)
+int usrp_dma_buf_enqueue(struct usrp_dma_chan *chan, struct usrp_dma_buf *buf)
 {
 	struct usrp_buffer breq;
 	fd_set fds;
 
 	memset(&breq, 0, sizeof(breq));
-	breq.type = __to_buf_type(ctx);
-	breq.memory = ctx->mem_type;
+	breq.type = __to_buf_type(chan);
+	breq.memory = chan->mem_type;
 	breq.index = buf->index;
 
-	if (ctx->mem_type == USRP_MEMORY_USERPTR) {
+	if (chan->mem_type == USRP_MEMORY_USERPTR) {
 		breq.m.userptr = (unsigned long)buf->mem;
 		breq.length = buf->len;
 	}
 
 	/* HACK: Using valid_bytes for RX too
-	if (ctx->dir == TX) */
+	if (chan->dir == TX) */
 		breq.bytesused = buf->valid_bytes;
 
-	return __usrp_dma_ioctl(ctx->fd, USRPIOC_QBUF, &breq);
+	return __usrp_dma_ioctl(chan->fd, USRPIOC_QBUF, &breq);
 }
 
-struct usrp_dma_buf *usrp_dma_buf_dequeue(struct usrp_dma_ctx *ctx, int timeout)
+struct usrp_dma_buf *usrp_dma_buf_dequeue(struct usrp_dma_chan *chan, int timeout)
 {
 	struct usrp_buffer breq;
 	struct usrp_dma_buf *buf;
@@ -328,14 +328,14 @@ struct usrp_dma_buf *usrp_dma_buf_dequeue(struct usrp_dma_ctx *ctx, int timeout)
 	struct timeval tv;
 	struct timeval *tv_ptr = &tv;
 
-	if (!list_empty(&ctx->free_bufs)) { // Should only happen with ctx->dir == TX (see usrp_dma_request_buffers)
-		buf = list_first_entry(&ctx->free_bufs, struct usrp_dma_buf, node);
+	if (!list_empty(&chan->free_bufs)) { // Should only happen with chan->dir == TX (see usrp_dma_request_buffers)
+		buf = list_first_entry(&chan->free_bufs, struct usrp_dma_buf, node);
 		list_del(&buf->node);
 		return buf;
 	}
 
 	FD_ZERO(&fds);
-	FD_SET(ctx->fd, &fds);
+	FD_SET(chan->fd, &fds);
 
 	if (timeout >= 0) {
 		tv.tv_sec = timeout / 1000000;
@@ -344,10 +344,10 @@ struct usrp_dma_buf *usrp_dma_buf_dequeue(struct usrp_dma_ctx *ctx, int timeout)
 		tv_ptr = NULL;
 	}
 
-	if (ctx->dir == RX)
-		err = select(ctx->fd + 1, &fds, NULL, NULL, tv_ptr);
+	if (chan->dir == RX)
+		err = select(chan->fd + 1, &fds, NULL, NULL, tv_ptr);
 	else
-		err = select(ctx->fd + 1, NULL, &fds, NULL, tv_ptr);
+		err = select(chan->fd + 1, NULL, &fds, NULL, tv_ptr);
 
 	if (!err) {
 		log_warnx(__func__, "select timeout");
@@ -360,25 +360,25 @@ struct usrp_dma_buf *usrp_dma_buf_dequeue(struct usrp_dma_ctx *ctx, int timeout)
 	}
 
 	memset(&breq, 0, sizeof(breq));
-	breq.type = __to_buf_type(ctx);
+	breq.type = __to_buf_type(chan);
 
-	breq.memory = ctx->mem_type;
+	breq.memory = chan->mem_type;
 
-	err = __usrp_dma_ioctl(ctx->fd, USRPIOC_DQBUF, &breq);
+	err = __usrp_dma_ioctl(chan->fd, USRPIOC_DQBUF, &breq);
 	if (err)
 		return NULL;
 
-	if (ctx->mem_type == USRP_MEMORY_MMAP) {
-		buf = ctx->bufs + breq.index;
-	} else if (ctx->mem_type == USRP_MEMORY_USERPTR) {
-		for (i = 0; i < ctx->nbufs; i++)
-			if (breq.m.userptr == (unsigned long)ctx->bufs[i].mem
-			    && breq.length == ctx->bufs[i].len)
+	if (chan->mem_type == USRP_MEMORY_MMAP) {
+		buf = chan->bufs + breq.index;
+	} else if (chan->mem_type == USRP_MEMORY_USERPTR) {
+		for (i = 0; i < chan->nbufs; i++)
+			if (breq.m.userptr == (unsigned long)chan->bufs[i].mem
+			    && breq.length == chan->bufs[i].len)
 				break;
-		buf = ctx->bufs + i;
+		buf = chan->bufs + i;
 	}
 
-	if (ctx->dir == RX)
+	if (chan->dir == RX)
 		buf->valid_bytes = breq.bytesused;
 
 	return buf;
@@ -387,21 +387,21 @@ struct usrp_dma_buf *usrp_dma_buf_dequeue(struct usrp_dma_ctx *ctx, int timeout)
 /*
  * usrp_dma_buf_export() - Export usrp dma buffer as dmabuf fd
  * that can be shared between processes
- * @ctx: context
+ * @chan: context
  * @buf: buffer
  * @dmafd: dma file descriptor output
  */
-int usrp_dma_buf_export(struct usrp_dma_ctx *ctx, struct usrp_dma_buf *buf,
+int usrp_dma_buf_export(struct usrp_dma_chan *chan, struct usrp_dma_buf *buf,
 			int *dmafd)
 {
 	struct usrp_exportbuffer breq;
 	int err;
 
 	memset(&breq, 0, sizeof(breq));
-	breq.type = __to_buf_type(ctx);
+	breq.type = __to_buf_type(chan);
 	breq.index = buf->index;
 
-	err = __usrp_dma_ioctl(ctx->fd, USRPIOC_EXPBUF, &breq);
+	err = __usrp_dma_ioctl(chan->fd, USRPIOC_EXPBUF, &breq);
 	if (err) {
 		log_warn(__func__, "failed to export buffer");
 		return err;
@@ -481,15 +481,15 @@ int usrp_dma_buf_recv_fd(int sockfd)
 	return -EINVAL;
 }
 
-int usrp_dma_ctx_start_streaming(struct usrp_dma_ctx *ctx)
+int usrp_dma_chan_start_streaming(struct usrp_dma_chan *chan)
 {
-	enum usrp_buf_type type = __to_buf_type(ctx);
-	return __usrp_dma_ioctl(ctx->fd, USRPIOC_STREAMON, (void *)type);
+	enum usrp_buf_type type = __to_buf_type(chan);
+	return __usrp_dma_ioctl(chan->fd, USRPIOC_STREAMON, (void *)type);
 }
 
-int usrp_dma_ctx_stop_streaming(struct usrp_dma_ctx *ctx)
+int usrp_dma_chan_stop_streaming(struct usrp_dma_chan *chan)
 {
-	enum usrp_buf_type type = __to_buf_type(ctx);
-	return __usrp_dma_ioctl(ctx->fd, USRPIOC_STREAMOFF, (void *)type);
+	enum usrp_buf_type type = __to_buf_type(chan);
+	return __usrp_dma_ioctl(chan->fd, USRPIOC_STREAMOFF, (void *)type);
 }
 
