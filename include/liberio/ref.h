@@ -1,10 +1,16 @@
-#ifndef REF_H
-#define REF_H
+/*
+ * Copyright (c) 2015, National Instruments Corp.
+ *
+ * USRP DMA helper library
+ *
+ * SPDX-License-Identifier: GPL-2.0
+ *
+ */
+
+#ifndef LIBERIO_REF_H
+#define LIBERIO_REF_H
 
 #include <stddef.h>
-
-//#define container_of(ptr, type, member) \
-	    ((type *)((char *)(ptr) - offsetof(type, member)))
 
 struct ref {
 	void (*free)(const struct ref *);
@@ -23,4 +29,4 @@ static inline void ref_dec(const struct ref *ref)
 }
 
 
-#endif /* REF_H */
+#endif /* LIBERIO_REF_H */

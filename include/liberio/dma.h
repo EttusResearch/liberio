@@ -3,25 +3,21 @@
  *
  * USRP DMA helper library
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
+ * SPDX-License-Identifier: GPL-2.0
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
  */
 
-#ifndef DMA_H
-#define DMA_H
+#ifndef LIBERIO_DMA_H
+#define LIBERIO_DMA_H
 
 #ifdef __cplusplus
 extern "C"
 {
-#endif 
+#endif
+
 #include <liberio/ref.h>
 #include <liberio/list.h>
+
 
 enum usrp_memory {
 	USRP_MEMORY_MMAP             = 1,
@@ -94,4 +90,4 @@ int usrp_dma_chan_stop_streaming(struct usrp_dma_chan *chan);
 #ifdef __cplusplus
 }
 #endif
-#endif /* DMA_H */
+#endif /* LIBERIO_DMA_H */
