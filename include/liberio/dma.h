@@ -18,7 +18,6 @@ extern "C"
 #include <liberio/ref.h>
 #include <liberio/list.h>
 
-
 enum usrp_memory {
 	USRP_MEMORY_MMAP             = 1,
 	USRP_MEMORY_USERPTR          = 2,
@@ -78,7 +77,8 @@ int usrp_dma_request_buffers(struct usrp_dma_chan *chan, size_t num_buffers);
  * @param chan USRP DMA Context
  * @param timeout Timeout to dequeue buffer in microseconds
  */
-struct usrp_dma_buf *usrp_dma_buf_dequeue(struct usrp_dma_chan *chan, int timeout);
+struct usrp_dma_buf *usrp_dma_buf_dequeue(struct usrp_dma_chan *chan,
+					  int timeout);
 
 int usrp_dma_buf_enqueue(struct usrp_dma_chan *chan,
 			 struct usrp_dma_buf *buf);

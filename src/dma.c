@@ -28,8 +28,8 @@
 #define USRP_MAX_FRAMES 128
 
 struct usrp_dma_buf_ops {
-	int(*init)(struct usrp_dma_chan *, struct usrp_dma_buf *, size_t);
-	void(*release)(struct usrp_dma_buf *);
+	int (*init)(struct usrp_dma_chan *, struct usrp_dma_buf *, size_t);
+	void (*release)(struct usrp_dma_buf *);
 };
 
 void usrp_dma_init(int loglevel)
@@ -70,15 +70,6 @@ static void __usrp_dma_chan_free(const struct ref *ref)
 
 	for (i = chan->nbufs - 1; i > 0; i--)
 		chan->ops->release(chan->bufs + i);
-
-	/*
-	for (i = 0; i < RETRIES; i++) {
-		err = usrp_dma_request_buffers(chan, 0);
-		if (!err)
-			break;
-		sleep(0.5);
-	}
-	*/
 
 	close(chan->fd);
 	free(chan);
@@ -175,7 +166,7 @@ static const struct usrp_dma_buf_ops __usrp_dma_buf_dmabuf_ops = {
 	.release	=	__usrp_dma_buf_release_dmabuf,
 };
 
-static const char * memstring[] = {
+static const char *memstring[] = {
 	[USRP_MEMORY_MMAP] = "MMAP",
 	[USRP_MEMORY_USERPTR] = "USERPTR",
 	[USRP_MEMORY_DMABUF] = "DMABUF",
@@ -191,8 +182,8 @@ const char *usrp_dma_chan_get_type(const struct usrp_dma_chan *chan)
 }
 
 struct usrp_dma_chan *usrp_dma_chan_alloc(const char *file,
-					const enum usrp_dma_direction dir,
-					enum usrp_memory mem_type)
+					  const enum usrp_dma_direction dir,
+					  enum usrp_memory mem_type)
 {
 	struct usrp_dma_chan *chan;
 
@@ -214,7 +205,7 @@ struct usrp_dma_chan *usrp_dma_chan_alloc(const char *file,
 
 	if (mem_type == USRP_MEMORY_MMAP) {
 		chan->ops = &__usrp_dma_buf_mmap_ops;
-	} else if (mem_type == USRP_MEMORY_USERPTR){
+	} else if (mem_type == USRP_MEMORY_USERPTR) {
 		chan->ops = &__usrp_dma_buf_userptr_ops;
 	} else {
 		log_crit(__func__, "Invalid memory type specified");
@@ -242,8 +233,8 @@ int usrp_dma_request_buffers(struct usrp_dma_chan *chan, size_t num_buffers)
 
 	if (num_buffers > USRP_MAX_FRAMES) {
 		log_warnx(__func__, "tried to allocate %u buffers, max is %u"
-		                    " proceeding with: %u",
-			 num_buffers, USRP_MAX_FRAMES, USRP_MAX_FRAMES);
+			  " proceeding with: %u",
+			  num_buffers, USRP_MAX_FRAMES, USRP_MAX_FRAMES);
 		num_buffers = USRP_MAX_FRAMES;
 	}
 
@@ -254,8 +245,8 @@ int usrp_dma_request_buffers(struct usrp_dma_chan *chan, size_t num_buffers)
 
 	err = __usrp_dma_ioctl(chan->fd, USRPIOC_REQBUFS, &req);
 	if (err) {
-		log_crit(__func__, "failed to request buffers (num_buffers was %u) %d", num_buffers, err);
-		perror("foo");
+		log_crit(__func__, "failed to request buffers (num_buffers was %u) %d",
+			 num_buffers, err);
 		return err;
 	}
 
@@ -313,7 +304,8 @@ int usrp_dma_buf_enqueue(struct usrp_dma_chan *chan, struct usrp_dma_buf *buf)
 	return __usrp_dma_ioctl(chan->fd, USRPIOC_QBUF, &breq);
 }
 
-struct usrp_dma_buf *usrp_dma_buf_dequeue(struct usrp_dma_chan *chan, int timeout)
+struct usrp_dma_buf *usrp_dma_buf_dequeue(struct usrp_dma_chan *chan,
+					  int timeout)
 {
 	struct usrp_buffer breq;
 	struct usrp_dma_buf *buf;
@@ -322,8 +314,10 @@ struct usrp_dma_buf *usrp_dma_buf_dequeue(struct usrp_dma_chan *chan, int timeou
 	struct timeval tv;
 	struct timeval *tv_ptr = &tv;
 
-	if (!list_empty(&chan->free_bufs)) { // Should only happen with chan->dir == TX (see usrp_dma_request_buffers)
-		buf = list_first_entry(&chan->free_bufs, struct usrp_dma_buf, node);
+	// Should only happen with chan->dir == TX (see usrp_dma_request_buffers)
+	if (!list_empty(&chan->free_bufs)) {
+		buf = list_first_entry(&chan->free_bufs, struct usrp_dma_buf,
+				       node);
 		list_del(&buf->node);
 		return buf;
 	}
@@ -462,15 +456,17 @@ int usrp_dma_buf_recv_fd(int sockfd)
 	message.msg_iov = iov;
 	message.msg_iovlen = 1;
 
-	if ((res = recvmsg(sockfd, &message, 0)) <= 0)
+	res = recvmsg(sockfd, &message, 0);
+	if (res <= 0)
 		return res;
 
 	/* Iterate through header to find if there is a file
 	 * descriptor */
 	for (cmsg = CMSG_FIRSTHDR(&message); cmsg != NULL;
-	     cmsg = CMSG_NXTHDR(&message,cmsg))
-		if ((cmsg->cmsg_level == SOL_SOCKET) && (cmsg->cmsg_type == SCM_RIGHTS))
-			return *((int*)CMSG_DATA(cmsg));
+	     cmsg = CMSG_NXTHDR(&message, cmsg))
+		if ((cmsg->cmsg_level == SOL_SOCKET) &&
+		    (cmsg->cmsg_type == SCM_RIGHTS))
+			return *((int *)CMSG_DATA(cmsg));
 
 	return -EINVAL;
 }
@@ -478,12 +474,14 @@ int usrp_dma_buf_recv_fd(int sockfd)
 int usrp_dma_chan_start_streaming(struct usrp_dma_chan *chan)
 {
 	enum usrp_buf_type type = __to_buf_type(chan);
+
 	return __usrp_dma_ioctl(chan->fd, USRPIOC_STREAMON, (void *)type);
 }
 
 int usrp_dma_chan_stop_streaming(struct usrp_dma_chan *chan)
 {
 	enum usrp_buf_type type = __to_buf_type(chan);
+
 	return __usrp_dma_ioctl(chan->fd, USRPIOC_STREAMOFF, (void *)type);
 }
 
