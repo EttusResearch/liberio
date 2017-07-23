@@ -51,9 +51,13 @@ struct usrp_dma_chan {
 	const struct usrp_dma_buf_ops *ops;
 
 	enum usrp_memory mem_type;
+
+	int fix_broken_chdr;
 };
 
 void usrp_dma_init(int loglevel);
+
+void usrp_dma_register_logger(void (*cb)(int, const char *, void*), void *priv);
 
 const char *usrp_dma_chan_get_type(const struct usrp_dma_chan *chan);
 

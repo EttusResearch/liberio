@@ -37,6 +37,11 @@ void usrp_dma_init(int loglevel)
 	log_init(loglevel, "usrp_dma");
 }
 
+void usrp_dma_register_logger(void (*cb)(int, const char *, void*), void *priv)
+{
+	log_register(cb, priv);
+}
+
 static inline enum usrp_buf_type __to_buf_type(struct usrp_dma_chan *chan)
 {
 	return (chan->dir == TX) ? USRP_BUF_TYPE_OUTPUT : USRP_BUF_TYPE_INPUT;
@@ -201,6 +206,7 @@ struct usrp_dma_chan *usrp_dma_chan_alloc(const char *file,
 	chan->bufs = NULL;
 	chan->nbufs = 0;
 	chan->mem_type = mem_type;
+	chan->fix_broken_chdr = 1;
 	INIT_LIST_HEAD(&chan->free_bufs);
 
 	if (mem_type == USRP_MEMORY_MMAP) {
@@ -282,6 +288,13 @@ out_free:
 	return err;
 }
 
+static uint16_t __usrp_dma_buf_extract_chdr_length(struct usrp_dma_buf *buf)
+{
+	const uint32_t *tmp_buf = buf->mem;
+
+	return (((uint32_t *)buf->mem)[0]) & 0xffff;
+}
+
 int usrp_dma_buf_enqueue(struct usrp_dma_chan *chan, struct usrp_dma_buf *buf)
 {
 	struct usrp_buffer breq;
@@ -297,8 +310,8 @@ int usrp_dma_buf_enqueue(struct usrp_dma_chan *chan, struct usrp_dma_buf *buf)
 		breq.length = buf->len;
 	}
 
-	/* HACK: Using valid_bytes for RX too
-	if (chan->dir == TX) */
+	/* For the broken_chdr case, we need to tell driver the size */
+	if (chan->dir == TX || (chan->dir == RX && chan->fix_broken_chdr))
 		breq.bytesused = buf->valid_bytes;
 
 	return __usrp_dma_ioctl(chan->fd, USRPIOC_QBUF, &breq);
@@ -366,7 +379,9 @@ struct usrp_dma_buf *usrp_dma_buf_dequeue(struct usrp_dma_chan *chan,
 		buf = chan->bufs + i;
 	}
 
-	if (chan->dir == RX)
+	if (chan->dir == RX && chan->fix_broken_chdr)
+		buf->valid_bytes = __usrp_dma_buf_extract_chdr_length(buf);
+	else
 		buf->valid_bytes = breq.bytesused;
 
 	return buf;
