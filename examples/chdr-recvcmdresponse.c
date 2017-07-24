@@ -29,7 +29,7 @@ static uint64_t get_time(void)
 	return ((uint64_t)ts.tv_sec) * 1000 * 1000 * 1000 + ts.tv_nsec;
 }
 
-static void print_buf(struct usrp_dma_buf *buf)
+static void print_buf(struct liberio_buf *buf)
 {
 	uint64_t *vals = buf->mem;
 
@@ -48,7 +48,7 @@ static void print_buf(struct usrp_dma_buf *buf)
 
 int main(int argc, char *argv[])
 {
-	struct usrp_dma_chan *chan;
+	struct liberio_chan *chan;
 	int fd;
 	int err;
 	uint64_t received;
@@ -56,13 +56,13 @@ int main(int argc, char *argv[])
 	uint64_t last;
 	uint64_t *vals;
 
-	usrp_dma_init(3);
+	liberio_init(3);
 
-	chan = usrp_dma_chan_alloc("/dev/rx-dma0", RX, USRP_MEMORY_MMAP);
+	chan = liberio_chan_alloc("/dev/rx-dma0", RX, USRP_MEMORY_MMAP);
 	if (!chan)
 		return EXIT_FAILURE;
 
-	err = usrp_dma_request_buffers(chan, NBUFS);
+	err = liberio_request_buffers(chan, NBUFS);
 	if (err < 0) {
 		log_crit(__func__, "failed to request buffers");
 		goto out_free;
@@ -74,7 +74,7 @@ int main(int argc, char *argv[])
 	for (size_t i = 0; i < chan->nbufs; i++) {
 		/*
 		//printf("-- Queing up buffer %u\n", i);
-		err = usrp_dma_buf_enqueue(chan, chan->bufs + i);
+		err = liberio_buf_enqueue(chan, chan->bufs + i);
 		if (err) {
 			log_warn(__func__, "failed to get buffer");
 			goto out_free;
@@ -84,9 +84,9 @@ int main(int argc, char *argv[])
 	}
 
 	log_info(__func__, "Starting streaming (%s)",
-		 usrp_dma_chan_get_type(chan));
+		 liberio_chan_get_type(chan));
 
-	err = usrp_dma_chan_start_streaming(chan);
+	err = liberio_chan_start_streaming(chan);
 	if (err) {
 		log_crit(__func__, "failed to start streaming\n");
 		goto out_free;
@@ -96,12 +96,12 @@ int main(int argc, char *argv[])
 	start = get_time();
 
 	for (size_t i = 0; i < NITER; ++i) {
-		struct usrp_dma_buf *buf;
+		struct liberio_buf *buf;
 
 		if (i < chan->nbufs)
-			usrp_dma_buf_enqueue(chan, chan->bufs + i);
+			liberio_buf_enqueue(chan, chan->bufs + i);
 
-		buf = usrp_dma_buf_dequeue(chan, -1);
+		buf = liberio_buf_dequeue(chan, -1);
 		if (!buf) {
 			log_warn(__func__, "failed to get buffer");
 			goto out_free;
@@ -112,7 +112,7 @@ int main(int argc, char *argv[])
 
 
 		if (i < NITER - 1) {
-			err = usrp_dma_buf_enqueue(chan, buf);
+			err = liberio_buf_enqueue(chan, buf);
 			if (err) {
 				log_warn(__func__, "failed to get buffer");
 				goto out_free;
@@ -123,13 +123,13 @@ int main(int argc, char *argv[])
 	end = get_time();
 
 	log_info(__func__, "Stopping streaming");
-	err = usrp_dma_chan_stop_streaming(chan);
+	err = liberio_chan_stop_streaming(chan);
 	if (err) {
 		log_crit(__func__, "failed to start streaming");
 		goto out_free;
 	}
 
-	usrp_dma_chan_put(chan);
+	liberio_chan_put(chan);
 
 	log_info(__func__, "Received %llu bytes in %llu ns -> %f MB/s",
 	       received, (end - start),
@@ -141,8 +141,8 @@ out_free:
 out_close:
 	end = get_time();
 
-	usrp_dma_chan_stop_streaming(chan);
-	usrp_dma_chan_put(chan);
+	liberio_chan_stop_streaming(chan);
+	liberio_chan_put(chan);
 
 	log_info(__func__, "Received %llu bytes in %llu ns -> %f MB/s",
 	       received, (end - start),

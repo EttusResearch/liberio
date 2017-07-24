@@ -88,6 +88,17 @@ struct usrp_exportbuffer {
 	__u32	reserved[11];
 };
 
+enum usrp_fmt_type {
+	USRP_FMT_CHDR_FIXED_BLOCK,
+};
+
+struct usrp_fmt {
+	__u32 type;
+	__u32 length;
+	__u32 reserved[6];
+};
+
+
 #define USRPIOC_REQBUFS		_IOWR('V',  8, struct usrp_requestbuffers)
 #define USRPIOC_QUERYBUF	_IOWR('V',  9, struct usrp_buffer)
 #define USRPIOC_QBUF		_IOWR('V', 15, struct usrp_buffer)
@@ -95,5 +106,6 @@ struct usrp_exportbuffer {
 #define USRPIOC_DQBUF		_IOWR('V', 17, struct usrp_buffer)
 #define USRPIOC_STREAMON	_IOW('V', 18, int)
 #define USRPIOC_STREAMOFF	_IOW('V', 19, int)
+#define USRPIOC_SET_FMT	_IOW('V', 20, struct usrp_fmt)
 
 #endif /* USRP_STUFF_H */

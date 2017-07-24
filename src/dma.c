@@ -1,12 +1,13 @@
 /*
- * Copyright (c) 2015, National Instruments Corp.
+ * Copyright (c) 2017, National Instruments Corp.
  *
- * USRP DMA helper library
+ * "That dude over there just punched Merica into that guy,
+ *  he must be a Liberio!"
+ * 	- Urban Dictionary
  *
  * SPDX-License-Identifier: GPL-2.0
  *
  */
-
 
 #include "v4l2-stuff.h"
 #include <liberio/dma.h>
@@ -27,27 +28,27 @@
 #define TIMEOUT 1
 #define USRP_MAX_FRAMES 128
 
-struct usrp_dma_buf_ops {
-	int (*init)(struct usrp_dma_chan *, struct usrp_dma_buf *, size_t);
-	void (*release)(struct usrp_dma_buf *);
+struct liberio_buf_ops {
+	int (*init)(struct liberio_chan *, struct liberio_buf *, size_t);
+	void (*release)(struct liberio_buf *);
 };
 
-void usrp_dma_init(int loglevel)
+void liberio_init(int loglevel)
 {
 	log_init(loglevel, "usrp_dma");
 }
 
-void usrp_dma_register_logger(void (*cb)(int, const char *, void*), void *priv)
+void liberio_register_logger(void (*cb)(int, const char *, void*), void *priv)
 {
 	log_register(cb, priv);
 }
 
-static inline enum usrp_buf_type __to_buf_type(struct usrp_dma_chan *chan)
+static inline enum usrp_buf_type __to_buf_type(struct liberio_chan *chan)
 {
 	return (chan->dir == TX) ? USRP_BUF_TYPE_OUTPUT : USRP_BUF_TYPE_INPUT;
 }
 
-static int __usrp_dma_ioctl(int fd, unsigned long req, void *arg)
+static int __liberio_ioctl(int fd, unsigned long req, void *arg)
 {
 	int r;
 
@@ -58,22 +59,22 @@ static int __usrp_dma_ioctl(int fd, unsigned long req, void *arg)
 	return r;
 }
 
-static void __usrp_dma_buf_release_mmap(struct usrp_dma_buf *buf)
+static void __liberio_buf_release_mmap(struct liberio_buf *buf)
 {
 	if (buf && buf->mem)
 		munmap(buf->mem, buf->len);
 }
 
-static void __usrp_dma_chan_free(const struct ref *ref)
+static void __liberio_chan_free(const struct ref *ref)
 {
 	size_t i;
 	int err;
-	struct usrp_dma_chan *chan = container_of(ref, struct usrp_dma_chan,
+	struct liberio_chan *chan = container_of(ref, struct liberio_chan,
 						refcnt);
 	if (!chan)
 		return;
 
-	if(!chan->bufs)
+	if (!chan->bufs)
 		goto out;
 
 	for (i = chan->nbufs - 1; i > 0; i--)
@@ -85,8 +86,8 @@ out:
 }
 
 
-static int __usrp_dma_buf_init_mmap(struct usrp_dma_chan *chan,
-				    struct usrp_dma_buf *buf, size_t index)
+static int __liberio_buf_init_mmap(struct liberio_chan *chan,
+				    struct liberio_buf *buf, size_t index)
 {
 	struct usrp_buffer breq;
 	int err;
@@ -96,10 +97,10 @@ static int __usrp_dma_buf_init_mmap(struct usrp_dma_chan *chan,
 	breq.index = index;
 	breq.memory = USRP_MEMORY_MMAP;
 
-	err = __usrp_dma_ioctl(chan->fd, USRPIOC_QUERYBUF, &breq);
+	err = __liberio_ioctl(chan->fd, USRPIOC_QUERYBUF, &breq);
 	if (err) {
 		log_warn(__func__,
-			"failed to create usrp_dma_buf for index %u", index);
+			"failed to create liberio_buf for index %u", index);
 		return err;
 	}
 
@@ -112,21 +113,23 @@ static int __usrp_dma_buf_init_mmap(struct usrp_dma_chan *chan,
 			MAP_SHARED, chan->fd,
 			breq.m.offset);
 	if (buf->mem == MAP_FAILED) {
-		log_warn(__func__, "failed to mmap buffer with index %u", index);
+		log_warn(__func__, "failed to mmap buffer with index %u",
+			 index);
 		return err;
 	}
 
 	return err;
 }
 
-static int __usrp_dma_buf_init_userptr(struct usrp_dma_chan *chan,
-				       struct usrp_dma_buf *buf, size_t index)
+static int __liberio_buf_init_userptr(struct liberio_chan *chan,
+				       struct liberio_buf *buf, size_t index)
 {
 	struct usrp_buffer_breq;
 	int err;
 
 	/* until we have scatter gather capabilities, be happy
-	 * with page sized chunks */
+	 * with page sized chunks
+	 */
 	err = posix_memalign(&buf->mem, getpagesize(), getpagesize());
 	if (err || !buf->mem)
 		log_crit(__func__, "failed to allocate memory for buf %u",
@@ -141,47 +144,47 @@ static int __usrp_dma_buf_init_userptr(struct usrp_dma_chan *chan,
 	return 0;
 }
 
-static void __usrp_dma_buf_release_userptr(struct usrp_dma_buf *buf)
+static void __liberio_buf_release_userptr(struct liberio_buf *buf)
 {
 	if (buf && buf->mem)
 		free(buf->mem);
 }
 
-static int __usrp_dma_buf_init_dmabuf(struct usrp_dma_chan *chan,
-				       struct usrp_dma_buf *buf, size_t index)
+static int __liberio_buf_init_dmabuf(struct liberio_chan *chan,
+				       struct liberio_buf *buf, size_t index)
 {
 	log_crit(__func__, "Not implemented");
 
 	return -ENOTTY;
 }
 
-static void __usrp_dma_buf_release_dmabuf(struct usrp_dma_buf *buf)
+static void __liberio_buf_release_dmabuf(struct liberio_buf *buf)
 {
 	log_crit(__func__, "Not implemented");
 }
 
-static const struct usrp_dma_buf_ops __usrp_dma_buf_mmap_ops = {
-	.init		=	__usrp_dma_buf_init_mmap,
-	.release	=	__usrp_dma_buf_release_mmap,
+static const struct liberio_buf_ops __liberio_buf_mmap_ops = {
+	.init		=	__liberio_buf_init_mmap,
+	.release	=	__liberio_buf_release_mmap,
 };
 
-static const struct usrp_dma_buf_ops __usrp_dma_buf_userptr_ops = {
-	.init		=	__usrp_dma_buf_init_userptr,
-	.release	=	__usrp_dma_buf_release_userptr,
+static const struct liberio_buf_ops __liberio_buf_userptr_ops = {
+	.init		=	__liberio_buf_init_userptr,
+	.release	=	__liberio_buf_release_userptr,
 };
 
-static const struct usrp_dma_buf_ops __usrp_dma_buf_dmabuf_ops = {
-	.init		=	__usrp_dma_buf_init_dmabuf,
-	.release	=	__usrp_dma_buf_release_dmabuf,
+static const struct liberio_buf_ops __liberio_buf_dmabuf_ops = {
+	.init		=	__liberio_buf_init_dmabuf,
+	.release	=	__liberio_buf_release_dmabuf,
 };
 
-static const char *memstring[] = {
+static const char *const memstring[] = {
 	[USRP_MEMORY_MMAP] = "MMAP",
 	[USRP_MEMORY_USERPTR] = "USERPTR",
 	[USRP_MEMORY_DMABUF] = "DMABUF",
 };
 
-const char *usrp_dma_chan_get_type(const struct usrp_dma_chan *chan)
+const char *liberio_chan_get_type(const struct liberio_chan *chan)
 {
 	if ((chan->mem_type < USRP_MEMORY_MMAP) ||
 	    (chan->mem_type > USRP_MEMORY_DMABUF))
@@ -190,11 +193,11 @@ const char *usrp_dma_chan_get_type(const struct usrp_dma_chan *chan)
 	return memstring[chan->mem_type];
 }
 
-struct usrp_dma_chan *usrp_dma_chan_alloc(const char *file,
-					  const enum usrp_dma_direction dir,
+struct liberio_chan *liberio_chan_alloc(const char *file,
+					  const enum liberio_direction dir,
 					  enum usrp_memory mem_type)
 {
-	struct usrp_dma_chan *chan;
+	struct liberio_chan *chan;
 
 	chan = calloc(1, sizeof(*chan));
 	if (!chan)
@@ -210,21 +213,21 @@ struct usrp_dma_chan *usrp_dma_chan_alloc(const char *file,
 	chan->bufs = NULL;
 	chan->nbufs = 0;
 	chan->mem_type = mem_type;
-	chan->fix_broken_chdr = 1;
+	chan->fix_broken_chdr = 0;
 	INIT_LIST_HEAD(&chan->free_bufs);
 
 	if (mem_type == USRP_MEMORY_MMAP) {
-		chan->ops = &__usrp_dma_buf_mmap_ops;
+		chan->ops = &__liberio_buf_mmap_ops;
 	} else if (mem_type == USRP_MEMORY_USERPTR) {
-		chan->ops = &__usrp_dma_buf_userptr_ops;
+		chan->ops = &__liberio_buf_userptr_ops;
 	} else {
 		log_crit(__func__, "Invalid memory type specified");
 		return NULL;
 	}
 
-	chan->refcnt = (struct ref){__usrp_dma_chan_free, 1};
-	usrp_dma_chan_stop_streaming(chan);
-	usrp_dma_request_buffers(chan, 0);
+	chan->refcnt = (struct ref){__liberio_chan_free, 1};
+	liberio_chan_stop_streaming(chan);
+	liberio_request_buffers(chan, 0);
 
 	return chan;
 
@@ -234,7 +237,7 @@ out_free:
 	return NULL;
 }
 
-int usrp_dma_request_buffers(struct usrp_dma_chan *chan, size_t num_buffers)
+int liberio_request_buffers(struct liberio_chan *chan, size_t num_buffers)
 {
 	struct usrp_requestbuffers req;
 	int err;
@@ -253,7 +256,7 @@ int usrp_dma_request_buffers(struct usrp_dma_chan *chan, size_t num_buffers)
 	req.memory = chan->mem_type;
 	req.count = num_buffers;
 
-	err = __usrp_dma_ioctl(chan->fd, USRPIOC_REQBUFS, &req);
+	err = __liberio_ioctl(chan->fd, USRPIOC_REQBUFS, &req);
 	if (err) {
 		log_crit(__func__, "failed to request buffers (num_buffers was %u) %d",
 			 num_buffers, err);
@@ -264,7 +267,7 @@ int usrp_dma_request_buffers(struct usrp_dma_chan *chan, size_t num_buffers)
 	if (!num_buffers)
 		return 0;
 
-	chan->bufs = calloc(req.count, sizeof(struct usrp_dma_buf));
+	chan->bufs = calloc(req.count, sizeof(struct liberio_buf));
 	if (!chan->bufs) {
 		log_crit(__func__, "failed to alloc mem for buffers");
 		return -ENOMEM;
@@ -296,14 +299,30 @@ out_free:
 	return err;
 }
 
-static uint16_t __usrp_dma_buf_extract_chdr_length(struct usrp_dma_buf *buf)
+int liberio_chan_set_fixed_size(struct liberio_chan *chan, size_t size)
+{
+	struct usrp_fmt breq;
+
+	memset(&breq, 0, sizeof(breq));
+	breq.type = USRP_FMT_CHDR_FIXED_BLOCK;
+	breq.length = size;
+
+	return __liberio_ioctl(chan->fd, USRPIOC_SET_FMT, &breq);
+}
+
+static uint16_t __liberio_buf_extract_chdr_length(struct liberio_buf *buf)
 {
 	const uint32_t *tmp_buf = buf->mem;
 
 	return (((uint32_t *)buf->mem)[0]) & 0xffff;
 }
 
-int usrp_dma_buf_enqueue(struct usrp_dma_chan *chan, struct usrp_dma_buf *buf)
+/*
+ * liberio_buf_enqueue - Enqueue a buffer to the driver
+ * @chan: the liberio channel to use
+ * @buf: the liberio buffer to use
+ */
+int liberio_buf_enqueue(struct liberio_chan *chan, struct liberio_buf *buf)
 {
 	struct usrp_buffer breq;
 	fd_set fds;
@@ -322,22 +341,27 @@ int usrp_dma_buf_enqueue(struct usrp_dma_chan *chan, struct usrp_dma_buf *buf)
 	if (chan->dir == TX || (chan->dir == RX && chan->fix_broken_chdr))
 		breq.bytesused = buf->valid_bytes;
 
-	return __usrp_dma_ioctl(chan->fd, USRPIOC_QBUF, &breq);
+	return __liberio_ioctl(chan->fd, USRPIOC_QBUF, &breq);
 }
 
-struct usrp_dma_buf *usrp_dma_buf_dequeue(struct usrp_dma_chan *chan,
-					  int timeout)
+/*
+ * liberio_buf_dequeue - Dequeue a buffer from the driver
+ * @chan: the liberio channel to dequeue from
+ * @timeout: the timeout to use in us
+ */
+struct liberio_buf *liberio_buf_dequeue(struct liberio_chan *chan,
+					int timeout)
 {
 	struct usrp_buffer breq;
-	struct usrp_dma_buf *buf;
+	struct liberio_buf *buf;
 	int err, i;
 	fd_set fds;
 	struct timeval tv;
 	struct timeval *tv_ptr = &tv;
 
-	// Should only happen with chan->dir == TX (see usrp_dma_request_buffers)
+	// Should only happen with chan->dir == TX (see liberio_request_buffers)
 	if (!list_empty(&chan->free_bufs)) {
-		buf = list_first_entry(&chan->free_bufs, struct usrp_dma_buf,
+		buf = list_first_entry(&chan->free_bufs, struct liberio_buf,
 				       node);
 		list_del(&buf->node);
 		return buf;
@@ -373,7 +397,7 @@ struct usrp_dma_buf *usrp_dma_buf_dequeue(struct usrp_dma_chan *chan,
 
 	breq.memory = chan->mem_type;
 
-	err = __usrp_dma_ioctl(chan->fd, USRPIOC_DQBUF, &breq);
+	err = __liberio_ioctl(chan->fd, USRPIOC_DQBUF, &breq);
 	if (err)
 		return NULL;
 
@@ -388,7 +412,7 @@ struct usrp_dma_buf *usrp_dma_buf_dequeue(struct usrp_dma_chan *chan,
 	}
 
 	if (chan->dir == RX && chan->fix_broken_chdr)
-		buf->valid_bytes = __usrp_dma_buf_extract_chdr_length(buf);
+		buf->valid_bytes = __liberio_buf_extract_chdr_length(buf);
 	else
 		buf->valid_bytes = breq.bytesused;
 
@@ -396,14 +420,14 @@ struct usrp_dma_buf *usrp_dma_buf_dequeue(struct usrp_dma_chan *chan,
 }
 
 /*
- * usrp_dma_buf_export() - Export usrp dma buffer as dmabuf fd
+ * liberio_buf_export() - Export usrp dma buffer as dmabuf fd
  * that can be shared between processes
  * @chan: context
  * @buf: buffer
  * @dmafd: dma file descriptor output
  */
-int usrp_dma_buf_export(struct usrp_dma_chan *chan, struct usrp_dma_buf *buf,
-			int *dmafd)
+int liberio_buf_export(struct liberio_chan *chan, struct liberio_buf *buf,
+		       int *dmafd)
 {
 	struct usrp_exportbuffer breq;
 	int err;
@@ -412,7 +436,7 @@ int usrp_dma_buf_export(struct usrp_dma_chan *chan, struct usrp_dma_buf *buf,
 	breq.type = __to_buf_type(chan);
 	breq.index = buf->index;
 
-	err = __usrp_dma_ioctl(chan->fd, USRPIOC_EXPBUF, &breq);
+	err = __liberio_ioctl(chan->fd, USRPIOC_EXPBUF, &breq);
 	if (err) {
 		log_warn(__func__, "failed to export buffer");
 		return err;
@@ -423,7 +447,7 @@ int usrp_dma_buf_export(struct usrp_dma_chan *chan, struct usrp_dma_buf *buf,
 	return 0;
 }
 
-int usrp_dma_buf_send_fd(int sockfd, int fd)
+int liberio_buf_send_fd(int sockfd, int fd)
 {
 	struct msghdr message;
 	struct iovec iov[1];
@@ -455,7 +479,7 @@ int usrp_dma_buf_send_fd(int sockfd, int fd)
 	return sendmsg(sockfd, &message, 0);
 }
 
-int usrp_dma_buf_recv_fd(int sockfd)
+int liberio_buf_recv_fd(int sockfd)
 {
 	int sent_fd;
 	struct msghdr message;
@@ -484,7 +508,8 @@ int usrp_dma_buf_recv_fd(int sockfd)
 		return res;
 
 	/* Iterate through header to find if there is a file
-	 * descriptor */
+	 * descriptor
+	 */
 	for (cmsg = CMSG_FIRSTHDR(&message); cmsg != NULL;
 	     cmsg = CMSG_NXTHDR(&message, cmsg))
 		if ((cmsg->cmsg_level == SOL_SOCKET) &&
@@ -494,17 +519,17 @@ int usrp_dma_buf_recv_fd(int sockfd)
 	return -EINVAL;
 }
 
-int usrp_dma_chan_start_streaming(struct usrp_dma_chan *chan)
+int liberio_chan_start_streaming(struct liberio_chan *chan)
 {
 	enum usrp_buf_type type = __to_buf_type(chan);
 
-	return __usrp_dma_ioctl(chan->fd, USRPIOC_STREAMON, (void *)type);
+	return __liberio_ioctl(chan->fd, USRPIOC_STREAMON, (void *)type);
 }
 
-int usrp_dma_chan_stop_streaming(struct usrp_dma_chan *chan)
+int liberio_chan_stop_streaming(struct liberio_chan *chan)
 {
 	enum usrp_buf_type type = __to_buf_type(chan);
 
-	return __usrp_dma_ioctl(chan->fd, USRPIOC_STREAMOFF, (void *)type);
+	return __liberio_ioctl(chan->fd, USRPIOC_STREAMOFF, (void *)type);
 }
 

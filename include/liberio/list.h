@@ -1,3 +1,12 @@
+/*
+ * Copyright (c) Linus Torvalds, et al.
+ *
+ * Linked list implementation (taken from Linux kernel)
+ * adapted for userland
+ *
+ * SPDX-License-Identifier: GPL-2.0
+ */
+
 #ifndef _LINUX_LIST_H
 #define _LINUX_LIST_H
 

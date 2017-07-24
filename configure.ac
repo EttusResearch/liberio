@@ -1,4 +1,4 @@
-AC_INIT([Liberio DMA Streaming], [0.1], [moritz.fischer@ettus.com])
+AC_INIT([Liberio DMA Streaming], [0.2], [moritz.fischer@ettus.com])
 AM_INIT_AUTOMAKE([foreign dist-xz])
 
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
