@@ -17,6 +17,7 @@ extern "C"
 
 #include <liberio/ref.h>
 #include <liberio/list.h>
+#include <stdint.h>
 
 enum usrp_memory {
 	USRP_MEMORY_MMAP             = 1,

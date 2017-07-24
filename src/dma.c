@@ -73,9 +73,13 @@ static void __usrp_dma_chan_free(const struct ref *ref)
 	if (!chan)
 		return;
 
+	if(!chan->bufs)
+		goto out;
+
 	for (i = chan->nbufs - 1; i > 0; i--)
 		chan->ops->release(chan->bufs + i);
 
+out:
 	close(chan->fd);
 	free(chan);
 }
@@ -255,6 +259,10 @@ int usrp_dma_request_buffers(struct usrp_dma_chan *chan, size_t num_buffers)
 			 num_buffers, err);
 		return err;
 	}
+
+	/* if we're cleaning up, no need to initialize anything, just bail */
+	if (!num_buffers)
+		return 0;
 
 	chan->bufs = calloc(req.count, sizeof(struct usrp_dma_buf));
 	if (!chan->bufs) {
