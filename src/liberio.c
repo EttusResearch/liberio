@@ -67,10 +67,10 @@ struct liberio_chan {
 	int fix_broken_chdr;
 };
 
-static struct liberio_chan *liberio_chan_alloc(const char *file,
-					       const enum liberio_direction dir,
-					       enum usrp_memory mem_type);
-
+static struct liberio_chan *
+__liberio_chan_alloc(const char *file,
+		     const enum liberio_direction dir,
+		     enum usrp_memory mem_type);
 
 static void __liberio_ctx_free(const struct ref *ref)
 {
@@ -124,7 +124,7 @@ struct liberio_chan *liberio_ctx_alloc_chan(struct liberio_ctx *ctx,
 {
 	struct liberio_chan *chan;
 
-	chan = liberio_chan_alloc(file, dir, mem_type);
+	chan = __liberio_chan_alloc(file, dir, mem_type);
 	if (!chan)
 		return NULL;
 
@@ -399,9 +399,10 @@ err_val:
 	return ret;
 }
 
-static struct liberio_chan *liberio_chan_alloc(const char *file,
-					       const enum liberio_direction dir,
-					       enum usrp_memory mem_type)
+static struct liberio_chan *
+__liberio_chan_alloc(const char *file,
+		     const enum liberio_direction dir,
+		     enum usrp_memory mem_type)
 {
 	struct liberio_chan *chan;
 	int maj, min;
