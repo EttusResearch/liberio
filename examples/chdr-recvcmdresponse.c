@@ -8,7 +8,7 @@
 #include <sys/ioctl.h>
 #include <time.h>
 
-#include <liberio/dma.h>
+#include <liberio/liberio.h>
 
 #include "../src/log.h"
 
@@ -31,16 +31,16 @@ static uint64_t get_time(void)
 
 static void print_buf(struct liberio_buf *buf)
 {
-	uint64_t *vals = buf->mem;
+	uint64_t *vals = liberio_buf_get_mem(buf, 0);
 
-	log_debug(__func__, "-- Printing buffer %u --", buf->index);
+	log_debug(__func__, "-- Printing buffer %u --", liberio_buf_get_index(buf));
 
-	for (size_t i = 0; (i < 10) && (8*i < buf->valid_bytes); i++)
+	for (size_t i = 0; (i < 10) && (8*i < liberio_buf_get_len(buf, 0)); i++)
 		log_debug(__func__, "%08llx", vals[i]);
 
 	log_debug(__func__, "[...]");
 
-	for (size_t i = 500; (i < 512) && (8*i < buf->valid_bytes); i++)
+	for (size_t i = 500; (i < 512) && (8*i < liberio_buf_get_len(buf, 0)); i++)
 		log_debug(__func__, "%08llx", vals[i]);
 
 	//buf->valid_bytes = buf->len;
@@ -49,6 +49,7 @@ static void print_buf(struct liberio_buf *buf)
 int main(int argc, char *argv[])
 {
 	struct liberio_chan *chan;
+	struct liberio_ctx *ctx;
 	int fd;
 	int err;
 	uint64_t received;
@@ -56,13 +57,22 @@ int main(int argc, char *argv[])
 	uint64_t last;
 	uint64_t *vals;
 
-	liberio_init(3);
+	ctx = liberio_ctx_new();
+	if (!ctx)
+		return -1;
 
-	chan = liberio_chan_alloc("/dev/rx-dma0", RX, USRP_MEMORY_MMAP);
+	liberio_ctx_set_loglevel(ctx, 3);
+
+	chan = liberio_ctx_alloc_chan(ctx, "/dev/rx-dma0", RX,
+				      USRP_MEMORY_MMAP);
+	liberio_ctx_put(ctx);
 	if (!chan)
 		return EXIT_FAILURE;
 
-	err = liberio_request_buffers(chan, NBUFS);
+	liberio_chan_stop_streaming(chan);
+	liberio_chan_set_fixed_size(chan, 0, 8192);
+
+	err = liberio_chan_request_buffers(chan, NBUFS);
 	if (err < 0) {
 		log_crit(__func__, "failed to request buffers");
 		goto out_free;
@@ -70,8 +80,10 @@ int main(int argc, char *argv[])
 
 	/* queue up all the buffers, as they start out owned
 	 * by the application ... */
-	
-	for (size_t i = 0; i < chan->nbufs; i++) {
+
+	for (size_t i = 0; i < liberio_chan_get_num_bufs(chan); i++) {
+		struct liberio_buf *buf =
+			liberio_chan_get_buf_at_index(chan, i);
 		/*
 		//printf("-- Queing up buffer %u\n", i);
 		err = liberio_buf_enqueue(chan, chan->bufs + i);
@@ -80,7 +92,7 @@ int main(int argc, char *argv[])
 			goto out_free;
 		}
 		*/
-		chan->bufs[i].valid_bytes = 16;
+		liberio_buf_set_payload(buf, 0, 16);
 	}
 
 	log_info(__func__, "Starting streaming (%s)",
@@ -98,21 +110,22 @@ int main(int argc, char *argv[])
 	for (size_t i = 0; i < NITER; ++i) {
 		struct liberio_buf *buf;
 
-		if (i < chan->nbufs)
-			liberio_buf_enqueue(chan, chan->bufs + i);
+		if (i < liberio_chan_get_num_bufs(chan))
+			liberio_chan_buf_enqueue(chan,
+						 liberio_chan_get_buf_at_index(chan, i));
 
-		buf = liberio_buf_dequeue(chan, -1);
+		buf = liberio_chan_buf_dequeue(chan, -1);
 		if (!buf) {
 			log_warn(__func__, "failed to get buffer");
 			goto out_free;
 		}
 
 		print_buf(buf);
-		received += buf->len;
+		received += liberio_buf_get_len(buf, 0);
 
 
 		if (i < NITER - 1) {
-			err = liberio_buf_enqueue(chan, buf);
+			err = liberio_chan_buf_enqueue(chan, buf);
 			if (err) {
 				log_warn(__func__, "failed to get buffer");
 				goto out_free;

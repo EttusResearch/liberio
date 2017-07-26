@@ -8,7 +8,7 @@
 #include <sys/ioctl.h>
 #include <time.h>
 
-#include <liberio/dma.h>
+#include <liberio/liberio.h>
 #include "../src/log.h"
 
 #include <arpa/inet.h>
@@ -33,7 +33,7 @@ static uint64_t get_time(void)
 
 static void fill_buf(struct liberio_buf *buf, uint16_t seqno)
 {
-	uint32_t *vals = buf->mem;
+	uint32_t *vals = liberio_buf_get_mem(buf, 0);
 
 	//printf("filling buffer %u\n", buf->index);
        	vals[0]	= 0x00000250;
@@ -48,33 +48,40 @@ static void fill_buf(struct liberio_buf *buf, uint16_t seqno)
 	vals[1] <<= 32;*/
 	//vals[1] = 127;
 
-	buf->valid_bytes = 16;
+	liberio_buf_set_payload(buf, 0, 16);
 }
 
 int main(int argc, char *argv[])
 {
-	struct liberio_chan *ctx;
+	struct liberio_chan *chan;
+	struct liberio_ctx *ctx;
 	int fd;
 	int err = 0;
 	uint64_t start, end;
 	uint64_t transmitted;
 
-	liberio_init(3);
-
-	ctx = liberio_chan_alloc("/dev/tx-dma0", TX, USRP_MEMORY_MMAP);
+	ctx = liberio_ctx_new();
 	if (!ctx)
 		return EXIT_FAILURE;
 
-	err = liberio_request_buffers(ctx, NBUFS);
+	liberio_ctx_set_loglevel(ctx, 3);
+
+	chan = liberio_ctx_alloc_chan(ctx, "/dev/tx-dma0", TX,
+				     USRP_MEMORY_MMAP);
+	if (!chan)
+		return EXIT_FAILURE;
+	liberio_ctx_put(ctx);
+
+	err = liberio_chan_request_buffers(chan, NBUFS);
 	if (err < 0) {
 		log_crit(__func__, "failed to request buffers");
 		goto out_free;
 	}
 
 	log_info(__func__, "Starting streaming (%s)",
-		 liberio_chan_get_type(ctx));
+		 liberio_chan_get_type(chan));
 
-	err = liberio_chan_start_streaming(ctx);
+	err = liberio_chan_start_streaming(chan);
 	if (err) {
 		log_crit(__func__, "failed to start streaming");
 		goto out_free;
@@ -89,20 +96,20 @@ int main(int argc, char *argv[])
 
 		/* buffers start out in dequeued state,
 		 * so first ctx->nbufs times we don't need to deq */
-		if (i >= ctx->nbufs) {
-			buf = liberio_buf_dequeue(ctx, 250000);
+		if (i >= liberio_chan_get_num_bufs(chan)) {
+			buf = liberio_chan_buf_dequeue(chan, 250000);
 			if (!buf) {
 				log_warn(__func__, "failed to get buffer");
 				goto out_free;
 			}
 		} else {
-			buf = ctx->bufs + i;
+			buf = liberio_chan_get_buf_at_index(chan, i);
 		}
 
 		fill_buf(buf, i);
-		transmitted += buf->valid_bytes;
+		transmitted += liberio_buf_get_payload(buf, 0);
 
-		err = liberio_buf_enqueue(ctx, buf);
+		err = liberio_chan_buf_enqueue(chan, buf);
 		if (err) {
 			log_warn(__func__, "failed to get buffer");
 			goto out_free;
@@ -112,13 +119,13 @@ int main(int argc, char *argv[])
 	end = get_time();
 
 	log_info(__func__, "Stopping streaming");
-	err = liberio_chan_stop_streaming(ctx);
+	err = liberio_chan_stop_streaming(chan);
 	if (err) {
 		log_crit(__func__, "failed to stop streaming");
 		goto out_free;
 	}
 
-	liberio_chan_put(ctx);
+	liberio_chan_put(chan);
 
 	log_info(__func__, "Transmitted %llu bytes in %llu ns -> %f MB/s",
 	       transmitted, (end - start),
@@ -128,8 +135,8 @@ int main(int argc, char *argv[])
 
 out_free:
 out_close:
-	liberio_chan_stop_streaming(ctx);
-	liberio_chan_put(ctx);
+	liberio_chan_stop_streaming(chan);
+	liberio_chan_put(chan);
 
 	return err;
 }

@@ -1,4 +1,4 @@
-AC_INIT([Liberio DMA Streaming], [0.2], [moritz.fischer@ettus.com])
+AC_INIT([Liberio DMA Streaming], [0.3], [moritz.fischer@ettus.com])
 AM_INIT_AUTOMAKE([foreign dist-xz])
 
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
@@ -18,6 +18,8 @@ AC_CHECK_HEADERS([sys/ioctl.h])
 AC_CHECK_HEADERS([sys/select.h])
 AC_CHECK_HEADERS([sys/mman.h])
 AC_CHECK_HEADERS([sys/socket.h])
+
+PKG_CHECK_MODULES([libudev], [libudev], [], AC_MSG_ERROR([Liberio requires libudev]))
 
 AC_CONFIG_FILES([Makefile include/Makefile src/Makefile examples/Makefile liberio.pc])
 AC_OUTPUT

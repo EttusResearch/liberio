@@ -7,6 +7,6 @@ Name: @PACKAGE@
 Description: USRP DMA Engine interface library
 URL: http://www.ettus.com
 Version: @VERSION@
+Requires: libudev
 Libs: -L${libdir} -lerio
 Cflags: -I${includedir}
-
