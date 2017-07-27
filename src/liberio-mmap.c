@@ -16,7 +16,7 @@
 
 #include "priv.h"
 #include "log.h"
-#include "v4l2-stuff.h"
+#include "kernel.h"
 #include "util.h"
 
 void __liberio_buf_release_mmap(struct liberio_buf *buf)

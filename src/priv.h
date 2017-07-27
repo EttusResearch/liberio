@@ -13,7 +13,7 @@
 #define LIBERIO_PRIV_H
 
 #include <liberio/liberio.h>
-#include "v4l2-stuff.h"
+#include "kernel.h"
 
 struct liberio_ctx {
 	struct udev *udev;

@@ -1,5 +1,5 @@
-#ifndef USRP_STUFF_H
-#define USRP_STUFF_H
+#ifndef LIBERIO_KERNEL_H
+#define LIBERIO_KERNEL_H
 
 #include <stdint.h>
 #include <sys/ioctl.h>
@@ -108,4 +108,4 @@ struct usrp_fmt {
 #define USRPIOC_STREAMOFF	_IOW('V', 19, int)
 #define USRPIOC_SET_FMT	_IOW('V', 20, struct usrp_fmt)
 
-#endif /* USRP_STUFF_H */
+#endif /* LIBERIO_KERNEL_H */

@@ -9,7 +9,6 @@
  *
  */
 
-#include "v4l2-stuff.h"
 #include <liberio/chan.h>
 #include <liberio/liberio.h>
 #include <liberio/buf.h>
@@ -30,6 +29,7 @@
 #include "util.h"
 #include "log.h"
 #include "priv.h"
+#include "kernel.h"
 
 extern const struct liberio_buf_ops liberio_buf_mmap_ops;
 extern const struct liberio_buf_ops liberio_buf_userptr_ops;
