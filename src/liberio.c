@@ -395,7 +395,8 @@ static uint16_t __liberio_buf_extract_chdr_length(struct liberio_buf *buf)
 	return (((uint32_t *)buf->mem)[0]) & 0xffff;
 }
 
-struct liberio_buf *liberio_chan_get_buf_at_index(const struct liberio_chan *chan, size_t index)
+struct liberio_buf *
+liberio_chan_get_buf_at_index(const struct liberio_chan *chan, size_t index)
 {
 	return chan->bufs + index;
 }
