@@ -37,7 +37,8 @@
 #define USRP_MAX_FRAMES 128
 
 static struct liberio_chan *
-__liberio_chan_alloc(const char *file,
+__liberio_chan_alloc(struct liberio_ctx *ctx,
+		     const char *file,
 		     const enum liberio_direction dir,
 		     enum usrp_memory mem_type);
 
@@ -93,12 +94,10 @@ struct liberio_chan *liberio_ctx_alloc_chan(struct liberio_ctx *ctx,
 {
 	struct liberio_chan *chan;
 
-	chan = __liberio_chan_alloc(file, dir, mem_type);
+	liberio_ctx_get(ctx);
+	chan = __liberio_chan_alloc(ctx, file, dir, mem_type);
 	if (!chan)
 		return NULL;
-
-	liberio_ctx_get(ctx);
-	chan->ctx = ctx;
 
 	return chan;
 }
@@ -348,7 +347,8 @@ err_val:
 }
 
 static struct liberio_chan *
-__liberio_chan_alloc(const char *file,
+__liberio_chan_alloc(struct liberio_ctx *ctx,
+		     const char *file,
 		     const enum liberio_direction dir,
 		     enum usrp_memory mem_type)
 {
@@ -366,6 +366,7 @@ __liberio_chan_alloc(const char *file,
 		goto out_free;
 	}
 
+	chan->ctx = ctx;
 	chan->dir = dir;
 	chan->bufs = NULL;
 	chan->nbufs = 0;
@@ -389,6 +390,7 @@ __liberio_chan_alloc(const char *file,
 	return chan;
 
 out_free:
+	liberio_ctx_put(ctx);
 	free(chan);
 
 	return NULL;
