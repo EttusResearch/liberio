@@ -14,9 +14,6 @@
 #include <liberio/liberio.h>
 #include <liberio/buf.h>
 
-#include "util.h"
-#include "log.h"
-
 #include <stdio.h>
 #include <fcntl.h>
 #include <sys/mman.h>
@@ -30,7 +27,13 @@
 
 #include <libudev.h>
 
+#include "util.h"
+#include "log.h"
 #include "priv.h"
+
+extern const struct liberio_buf_ops liberio_buf_mmap_ops;
+extern const struct liberio_buf_ops liberio_buf_userptr_ops;
+extern const struct liberio_buf_ops liberio_buf_dmabuf_ops;
 
 #define RETRIES 100
 #define TIMEOUT 1
@@ -140,12 +143,6 @@ void liberio_ctx_register_logger(struct liberio_ctx *ctx, void (*cb)(int, const 
 	log_register(cb, priv);
 }
 
-static void __liberio_buf_release_mmap(struct liberio_buf *buf)
-{
-	if (buf && buf->mem)
-		munmap(buf->mem, buf->len);
-}
-
 static void __liberio_chan_free(const struct ref *ref)
 {
 	size_t i;
@@ -179,98 +176,6 @@ inline void liberio_chan_get(struct liberio_chan *chan)
 {
 	ref_inc(&chan->refcnt);
 }
-
-static int __liberio_buf_init_mmap(struct liberio_chan *chan,
-				    struct liberio_buf *buf, size_t index)
-{
-	struct usrp_buffer breq;
-	int err;
-
-	memset(&breq, 0, sizeof(breq));
-	breq.type = __to_buf_type(chan);
-	breq.index = index;
-	breq.memory = USRP_MEMORY_MMAP;
-
-	err = liberio_ioctl(chan->fd, USRPIOC_QUERYBUF, &breq);
-	if (err) {
-		log_warn(__func__,
-			"failed to create liberio_buf for index %u", index);
-		return err;
-	}
-
-	buf->index = index;
-	buf->len = breq.length;
-	buf->valid_bytes = buf->len;
-
-	buf->mem = mmap(NULL, breq.length,
-			PROT_READ | PROT_WRITE,
-			MAP_SHARED, chan->fd,
-			breq.m.offset);
-	if (buf->mem == MAP_FAILED) {
-		log_warn(__func__, "failed to mmap buffer with index %u",
-			 index);
-		return err;
-	}
-
-	return err;
-}
-
-static int __liberio_buf_init_userptr(struct liberio_chan *chan,
-				       struct liberio_buf *buf, size_t index)
-{
-	struct usrp_buffer_breq;
-	int err;
-
-	/* until we have scatter gather capabilities, be happy
-	 * with page sized chunks
-	 */
-	err = posix_memalign(&buf->mem, getpagesize(), getpagesize());
-	if (err || !buf->mem)
-		log_crit(__func__, "failed to allocate memory for buf %u",
-			 index);
-
-	buf->index = index;
-
-	/* see above */
-	buf->len = getpagesize();
-	buf->valid_bytes = buf->len;
-
-	return 0;
-}
-
-static void __liberio_buf_release_userptr(struct liberio_buf *buf)
-{
-	if (buf && buf->mem)
-		free(buf->mem);
-}
-
-static int __liberio_buf_init_dmabuf(struct liberio_chan *chan,
-				       struct liberio_buf *buf, size_t index)
-{
-	log_crit(__func__, "Not implemented");
-
-	return -ENOTTY;
-}
-
-static void __liberio_buf_release_dmabuf(struct liberio_buf *buf)
-{
-	log_crit(__func__, "Not implemented");
-}
-
-static const struct liberio_buf_ops __liberio_buf_mmap_ops = {
-	.init		=	__liberio_buf_init_mmap,
-	.release	=	__liberio_buf_release_mmap,
-};
-
-static const struct liberio_buf_ops __liberio_buf_userptr_ops = {
-	.init		=	__liberio_buf_init_userptr,
-	.release	=	__liberio_buf_release_userptr,
-};
-
-static const struct liberio_buf_ops __liberio_buf_dmabuf_ops = {
-	.init		=	__liberio_buf_init_dmabuf,
-	.release	=	__liberio_buf_release_dmabuf,
-};
 
 static const char *const memstring[] = {
 	[USRP_MEMORY_MMAP] = "MMAP",
@@ -383,9 +288,9 @@ __liberio_chan_alloc(struct liberio_ctx *ctx,
 	INIT_LIST_HEAD(&chan->free_bufs);
 
 	if (mem_type == USRP_MEMORY_MMAP) {
-		chan->ops = &__liberio_buf_mmap_ops;
+		chan->ops = &liberio_buf_mmap_ops;
 	} else if (mem_type == USRP_MEMORY_USERPTR) {
-		chan->ops = &__liberio_buf_userptr_ops;
+		chan->ops = &liberio_buf_userptr_ops;
 	} else {
 		log_crit(__func__, "Invalid memory type specified");
 		return NULL;
