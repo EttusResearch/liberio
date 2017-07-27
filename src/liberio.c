@@ -161,6 +161,9 @@ static void __liberio_chan_free(const struct ref *ref)
 	for (i = chan->nbufs - 1; i > 0; i--)
 		chan->ops->release(chan->bufs + i);
 
+	if (chan->dev)
+		udev_device_unref(chan->dev);
+
 out:
 	liberio_ctx_put(chan->ctx);
 	close(chan->fd);
@@ -352,6 +355,7 @@ __liberio_chan_alloc(struct liberio_ctx *ctx,
 		     const enum liberio_direction dir,
 		     enum usrp_memory mem_type)
 {
+	struct udev *udev = ctx->udev;
 	struct liberio_chan *chan;
 	int maj, min;
 	int err;
@@ -365,6 +369,10 @@ __liberio_chan_alloc(struct liberio_ctx *ctx,
 		log_warn(__func__, "Failed to open device");
 		goto out_free;
 	}
+
+	chan->dev = liberio_udev_device_from_fd(udev, chan->fd);
+	if (!chan->dev)
+		goto out_free;
 
 	chan->ctx = ctx;
 	chan->dir = dir;
