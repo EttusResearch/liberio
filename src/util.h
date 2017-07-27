@@ -21,4 +21,5 @@ struct udev;
 struct udev_device *liberio_udev_device_from_fd(struct udev *udev,
 						int fd);
 
+int liberio_ioctl(int fd, unsigned long req, void *arg);
 #endif /* LIBERIO_UTIL_H */

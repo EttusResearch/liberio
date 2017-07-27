@@ -51,3 +51,15 @@ int liberio_chan_set_sysattr(struct liberio_chan *chan, const char *sysattr,
 
 	return udev_device_set_sysattr_value(chan->dev, sysattr, value);
 }
+
+int liberio_ioctl(int fd, unsigned long req, void *arg)
+{
+	int r;
+
+	do {
+		r = ioctl(fd, req, arg);
+	} while (-1 == r && EINTR == errno);
+
+	return r;
+}
+
