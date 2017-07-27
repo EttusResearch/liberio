@@ -482,10 +482,8 @@ struct liberio_buf *liberio_chan_buf_dequeue(struct liberio_chan *chan,
 	else
 		err = select(chan->fd + 1, NULL, &fds, NULL, tv_ptr);
 
-	if (!err) {
-		log_warnx(__func__, "select timeout");
+	if (!err)
 		return NULL;
-	}
 
 	if (-1 == err) {
 		log_warn(__func__, "select failed");
