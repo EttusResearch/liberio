@@ -13,6 +13,8 @@
 #include <sys/stat.h>
 #include <errno.h>
 #include <stdint.h>
+#include <sys/socket.h>
+#include <string.h>
 #include <libudev.h>
 
 #include "priv.h"
@@ -61,5 +63,77 @@ int liberio_ioctl(int fd, unsigned long req, void *arg)
 	} while (-1 == r && EINTR == errno);
 
 	return r;
+}
+
+int liberio_send_fd(int sockfd, int fd)
+{
+	struct msghdr message;
+	struct iovec iov[1];
+	struct cmsghdr *control_message = NULL;
+	char ctrl_buf[CMSG_SPACE(sizeof(int))];
+	char data[1];
+
+	memset(&message, 0, sizeof(struct msghdr));
+	memset(ctrl_buf, 0, CMSG_SPACE(sizeof(int)));
+
+	data[0] = '!';
+	iov[0].iov_base = data;
+	iov[0].iov_len = sizeof(data);
+
+	message.msg_name = NULL;
+	message.msg_namelen = 0;
+	message.msg_iov = iov;
+	message.msg_iovlen = 1;
+	message.msg_controllen =  CMSG_SPACE(sizeof(int));
+	message.msg_control = ctrl_buf;
+
+	control_message = CMSG_FIRSTHDR(&message);
+	control_message->cmsg_level = SOL_SOCKET;
+	control_message->cmsg_type = SCM_RIGHTS;
+	control_message->cmsg_len = CMSG_LEN(sizeof(int));
+
+	*((int *) CMSG_DATA(control_message)) = fd;
+
+	return sendmsg(sockfd, &message, 0);
+}
+
+int liberio_recv_fd(int sockfd)
+{
+	int sent_fd;
+	struct msghdr message;
+	struct iovec iov[1];
+	struct cmsghdr *cmsg = NULL;
+	char ctrl_buf[CMSG_SPACE(sizeof(int))];
+	char data[1];
+	int res;
+
+	memset(&message, 0, sizeof(struct msghdr));
+	memset(ctrl_buf, 0, CMSG_SPACE(sizeof(int)));
+
+	/* For the dummy data */
+	iov[0].iov_base = data;
+	iov[0].iov_len = sizeof(data);
+
+	message.msg_name = NULL;
+	message.msg_namelen = 0;
+	message.msg_control = ctrl_buf;
+	message.msg_controllen = CMSG_SPACE(sizeof(int));
+	message.msg_iov = iov;
+	message.msg_iovlen = 1;
+
+	res = recvmsg(sockfd, &message, 0);
+	if (res <= 0)
+		return res;
+
+	/* Iterate through header to find if there is a file
+	 * descriptor
+	 */
+	for (cmsg = CMSG_FIRSTHDR(&message); cmsg != NULL;
+	     cmsg = CMSG_NXTHDR(&message, cmsg))
+		if ((cmsg->cmsg_level == SOL_SOCKET) &&
+		    (cmsg->cmsg_type == SCM_RIGHTS))
+			return *((int *)CMSG_DATA(cmsg));
+
+	return -EINVAL;
 }
 
