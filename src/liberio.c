@@ -141,17 +141,6 @@ void liberio_ctx_register_logger(struct liberio_ctx *ctx, void (*cb)(int, const 
 	log_register(cb, priv);
 }
 
-static int __liberio_ioctl(int fd, unsigned long req, void *arg)
-{
-	int r;
-
-	do {
-		r = ioctl(fd, req, arg);
-	} while (-1 == r && EINTR == errno);
-
-	return r;
-}
-
 static void __liberio_buf_release_mmap(struct liberio_buf *buf)
 {
 	if (buf && buf->mem)
@@ -200,7 +189,7 @@ static int __liberio_buf_init_mmap(struct liberio_chan *chan,
 	breq.index = index;
 	breq.memory = USRP_MEMORY_MMAP;
 
-	err = __liberio_ioctl(chan->fd, USRPIOC_QUERYBUF, &breq);
+	err = liberio_ioctl(chan->fd, USRPIOC_QUERYBUF, &breq);
 	if (err) {
 		log_warn(__func__,
 			"failed to create liberio_buf for index %u", index);
@@ -424,7 +413,7 @@ int liberio_chan_request_buffers(struct liberio_chan *chan, size_t num_buffers)
 	req.memory = chan->mem_type;
 	req.count = num_buffers;
 
-	err = __liberio_ioctl(chan->fd, USRPIOC_REQBUFS, &req);
+	err = liberio_ioctl(chan->fd, USRPIOC_REQBUFS, &req);
 	if (err) {
 		log_crit(__func__, "failed to request buffers (num_buffers was %u) %d",
 			 num_buffers, err);
@@ -476,7 +465,7 @@ int liberio_chan_set_fixed_size(struct liberio_chan *chan, size_t plane,
 	breq.type = USRP_FMT_CHDR_FIXED_BLOCK;
 	breq.length = size;
 
-	return __liberio_ioctl(chan->fd, USRPIOC_SET_FMT, &breq);
+	return liberio_ioctl(chan->fd, USRPIOC_SET_FMT, &breq);
 }
 
 size_t liberio_chan_get_num_bufs(const struct liberio_chan *chan)
@@ -520,7 +509,7 @@ int liberio_chan_buf_enqueue(struct liberio_chan *chan, struct liberio_buf *buf)
 	if (chan->dir == TX || (chan->dir == RX && chan->fix_broken_chdr))
 		breq.bytesused = buf->valid_bytes;
 
-	return __liberio_ioctl(chan->fd, USRPIOC_QBUF, &breq);
+	return liberio_ioctl(chan->fd, USRPIOC_QBUF, &breq);
 }
 
 int liberio_chan_enqueue_all(struct liberio_chan *chan)
@@ -593,7 +582,7 @@ struct liberio_buf *liberio_chan_buf_dequeue(struct liberio_chan *chan,
 
 	breq.memory = chan->mem_type;
 
-	err = __liberio_ioctl(chan->fd, USRPIOC_DQBUF, &breq);
+	err = liberio_ioctl(chan->fd, USRPIOC_DQBUF, &breq);
 	if (err)
 		return NULL;
 
@@ -632,7 +621,7 @@ int liberio_chan_buf_export(struct liberio_chan *chan, struct liberio_buf *buf,
 	breq.type = __to_buf_type(chan);
 	breq.index = buf->index;
 
-	err = __liberio_ioctl(chan->fd, USRPIOC_EXPBUF, &breq);
+	err = liberio_ioctl(chan->fd, USRPIOC_EXPBUF, &breq);
 	if (err) {
 		log_warn(__func__, "failed to export buffer");
 		return err;
@@ -719,13 +708,13 @@ int liberio_chan_start_streaming(struct liberio_chan *chan)
 {
 	enum usrp_buf_type type = __to_buf_type(chan);
 
-	return __liberio_ioctl(chan->fd, USRPIOC_STREAMON, (void *)type);
+	return liberio_ioctl(chan->fd, USRPIOC_STREAMON, (void *)type);
 }
 
 int liberio_chan_stop_streaming(struct liberio_chan *chan)
 {
 	enum usrp_buf_type type = __to_buf_type(chan);
 
-	return __liberio_ioctl(chan->fd, USRPIOC_STREAMOFF, (void *)type);
+	return liberio_ioctl(chan->fd, USRPIOC_STREAMOFF, (void *)type);
 }
 
