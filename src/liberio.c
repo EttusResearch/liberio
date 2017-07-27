@@ -30,42 +30,11 @@
 
 #include <libudev.h>
 
+#include "priv.h"
+
 #define RETRIES 100
 #define TIMEOUT 1
 #define USRP_MAX_FRAMES 128
-
-struct liberio_ctx {
-	struct udev *udev;
-	struct ref refcnt;
-};
-
-struct liberio_buf {
-	uint32_t index;
-	void *mem;
-	size_t len;
-	size_t valid_bytes;
-	struct list_head node;
-};
-
-struct liberio_chan {
-	struct liberio_ctx *ctx;
-	struct list_head node;
-
-	int fd;
-	enum liberio_direction dir;
-
-	struct liberio_buf *bufs;
-	size_t nbufs;
-	struct list_head free_bufs;
-
-	struct ref refcnt;
-
-	const struct liberio_buf_ops *ops;
-
-	enum usrp_memory mem_type;
-
-	int fix_broken_chdr;
-};
 
 static struct liberio_chan *
 __liberio_chan_alloc(const char *file,
@@ -159,11 +128,6 @@ size_t liberio_buf_get_index(const struct liberio_buf *buf)
 	return buf->index;
 }
 
-struct liberio_buf_ops {
-	int (*init)(struct liberio_chan *, struct liberio_buf *, size_t);
-	void (*release)(struct liberio_buf *);
-};
-
 void liberio_ctx_set_loglevel(struct liberio_ctx *ctx, int loglevel)
 {
 	(void) ctx;
@@ -175,11 +139,6 @@ void liberio_ctx_register_logger(struct liberio_ctx *ctx, void (*cb)(int, const 
 {
 	(void) ctx;
 	log_register(cb, priv);
-}
-
-static inline enum usrp_buf_type __to_buf_type(struct liberio_chan *chan)
-{
-	return (chan->dir == TX) ? USRP_BUF_TYPE_OUTPUT : USRP_BUF_TYPE_INPUT;
 }
 
 static int __liberio_ioctl(int fd, unsigned long req, void *arg)
