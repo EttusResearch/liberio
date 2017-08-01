@@ -22,4 +22,11 @@ struct udev_device *liberio_udev_device_from_fd(struct udev *udev,
 						int fd);
 
 int liberio_ioctl(int fd, unsigned long req, void *arg);
+
+const char *liberio_chan_get_sysattr(struct liberio_chan *chan,
+				     const char *sysattr);
+
+int liberio_chan_set_sysattr(struct liberio_chan *chan, const char *sysattr,
+			     char *value);
+
 #endif /* LIBERIO_UTIL_H */
