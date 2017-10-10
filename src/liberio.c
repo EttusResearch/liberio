@@ -284,6 +284,8 @@ __liberio_chan_alloc(struct liberio_ctx *ctx,
 	chan->nbufs = 0;
 	chan->mem_type = mem_type;
 	chan->fix_broken_chdr = 0;
+
+	chan->port = __liberio_get_chan_attr_int(chan, "port", 10);
 	INIT_LIST_HEAD(&chan->free_bufs);
 
 	if (mem_type == USRP_MEMORY_MMAP) {

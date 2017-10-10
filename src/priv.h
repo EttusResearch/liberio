@@ -39,6 +39,8 @@ struct liberio_buf_ops {
 struct liberio_chan {
 	struct liberio_ctx *ctx;
 
+	int port;
+
 	pthread_spinlock_t lock;
 	struct list_head node;
 
