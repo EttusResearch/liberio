@@ -73,6 +73,7 @@ struct liberio_ctx *liberio_ctx_new(void)
 
 	ctx->refcnt = (struct ref){__liberio_ctx_free, 1};
 
+
 	return ctx;
 
 err_udev:
@@ -269,6 +270,8 @@ __liberio_chan_alloc(struct liberio_ctx *ctx,
 	if (!chan)
 		return NULL;
 
+	pthread_spin_init(&chan->lock, 0);
+
 	chan->fd = open(file, O_RDWR);
 	if (chan->fd < 0) {
 		log_warn(__func__, "Failed to open device");
@@ -352,8 +355,10 @@ int liberio_chan_request_buffers(struct liberio_chan *chan, size_t num_buffers)
 				req.count);
 			goto out_free;
 		}
+		pthread_spin_lock(&chan->lock);
 		if (chan->dir == TX)
 			list_add(&chan->bufs[i].node, &chan->free_bufs);
+		pthread_spin_unlock(&chan->lock);
 	}
 
 	chan->nbufs = i;
@@ -461,15 +466,19 @@ struct liberio_buf *liberio_chan_buf_dequeue(struct liberio_chan *chan,
 	struct timeval *tv_ptr = &tv;
 
 	// Should only happen with chan->dir == TX (see liberio_chan_request_buffers)
+	pthread_spin_lock(&chan->lock);
 	if (!list_empty(&chan->free_bufs)) {
 		buf = list_first_entry(&chan->free_bufs, struct liberio_buf,
 				       node);
 		list_del(&buf->node);
+		pthread_spin_unlock(&chan->lock);
 		return buf;
 	}
+	pthread_spin_unlock(&chan->lock);
 
 	FD_ZERO(&fds);
 	FD_SET(chan->fd, &fds);
+
 
 	if (timeout >= 0) {
 		tv.tv_sec = timeout / 1000000;

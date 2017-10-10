@@ -12,6 +12,7 @@
 #ifndef LIBERIO_PRIV_H
 #define LIBERIO_PRIV_H
 
+#include <pthread.h>
 #include <liberio/liberio.h>
 #include "kernel.h"
 
@@ -37,6 +38,8 @@ struct liberio_buf_ops {
 
 struct liberio_chan {
 	struct liberio_ctx *ctx;
+
+	pthread_spinlock_t lock;
 	struct list_head node;
 
 	struct udev_device *dev;
