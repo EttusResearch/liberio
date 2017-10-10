@@ -508,11 +508,14 @@ struct liberio_buf *liberio_chan_buf_dequeue(struct liberio_chan *chan,
 	if (chan->mem_type == USRP_MEMORY_MMAP) {
 		buf = chan->bufs + breq.index;
 	} else if (chan->mem_type == USRP_MEMORY_USERPTR) {
+		buf = NULL;
+
 		for (i = 0; i < chan->nbufs; i++)
 			if (breq.m.userptr == (unsigned long)chan->bufs[i].mem
 			    && breq.length == chan->bufs[i].len)
-				break;
-		buf = chan->bufs + i;
+				buf = chan->bufs + i;
+		if (!buf)
+			return NULL;
 	}
 
 	if (chan->dir == RX && chan->fix_broken_chdr)
