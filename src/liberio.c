@@ -223,8 +223,8 @@ static int __liberio_get_chan_attr_int(struct liberio_chan *chan,
 				       const char *attr,
 				       int base)
 {
+	struct udev *udev = chan->ctx->udev;
 	struct udev_device *dev;
-	struct udev *udev;
 	struct stat statbuf;
 	int ret;
 
@@ -238,10 +238,7 @@ static int __liberio_get_chan_attr_int(struct liberio_chan *chan,
 	if (!S_ISCHR(statbuf.st_mode))
 		return -EINVAL;
 
-	udev = udev_new();
-	if (!udev)
-		return -ENOMEM;
-
+	udev = chan->ctx->udev;
 	dev = udev_device_new_from_devnum(udev, 'c', statbuf.st_rdev);
 	if (!dev)
 		goto err_val;
@@ -251,7 +248,6 @@ static int __liberio_get_chan_attr_int(struct liberio_chan *chan,
 	udev_device_unref(dev);
 
 err_val:
-	udev_unref(udev);
 	return ret;
 }
 
