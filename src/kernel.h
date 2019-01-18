@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <sys/ioctl.h>
+#include <sys/time.h>
 #include <stdlib.h>
 
 #define __u32 uint32_t
