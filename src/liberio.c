@@ -146,7 +146,7 @@ void liberio_ctx_register_logger(struct liberio_ctx *ctx, void (*cb)(int, const 
 
 static void __liberio_chan_free(const struct ref *ref)
 {
-	size_t i;
+	ssize_t i;
 	int err;
 	struct liberio_chan *chan = container_of(ref, struct liberio_chan,
 						refcnt);
@@ -156,7 +156,7 @@ static void __liberio_chan_free(const struct ref *ref)
 	if (!chan->bufs)
 		goto out;
 
-	for (i = chan->nbufs - 1; i > 0; i--)
+	for (i = chan->nbufs - 1; i >= 0; i--)
 		chan->ops->release(chan->bufs + i);
 
 	if (chan->dev)
