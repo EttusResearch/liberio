@@ -153,16 +153,12 @@ static void __liberio_chan_free(const struct ref *ref)
 	if (!chan)
 		return;
 
-	if (!chan->bufs)
-		goto out;
-
-	for (i = chan->nbufs - 1; i >= 0; i--)
-		chan->ops->release(chan->bufs + i);
+	liberio_chan_stop_streaming(chan);
+	liberio_chan_request_buffers(chan, 0);
 
 	if (chan->dev)
 		udev_device_unref(chan->dev);
 
-out:
 	liberio_ctx_put(chan->ctx);
 	close(chan->fd);
 	free(chan);
@@ -314,8 +310,25 @@ int liberio_chan_request_buffers(struct liberio_chan *chan, size_t num_buffers)
 {
 	struct usrp_requestbuffers req;
 	int err;
-	size_t i;
+	ssize_t i;
 	enum usrp_buf_type type = __to_buf_type(chan);
+
+	/*
+	 * if we're cleaning up, free the buffers (and unmap the memory-mapped memory in case
+	 * of USRP_MEMORY_MMAP) before calling ioctl USRPIOC_REQBUFS with req.count = 0.
+	 * If this is missed, the ioctl will fail with ret=-1, errno=-16 "memory in use,
+	 * cannot free" in vb2_core_reqbufs
+	 */
+	if (!num_buffers && chan->bufs)
+	{
+		for (i = chan->nbufs - 1; i >= 0; i--)
+		{
+			chan->ops->release(chan->bufs + i);
+		}
+		free(chan->bufs);
+		chan->bufs=NULL;
+		chan->nbufs=0;
+	}
 
 	if (num_buffers > USRP_MAX_FRAMES) {
 		log_warnx(__func__, "tried to allocate %u buffers, max is %u"
@@ -331,8 +344,8 @@ int liberio_chan_request_buffers(struct liberio_chan *chan, size_t num_buffers)
 
 	err = liberio_ioctl(chan->fd, USRPIOC_REQBUFS, &req);
 	if (err) {
-		log_crit(__func__, "failed to request buffers (num_buffers was %u) %d",
-			 num_buffers, err);
+		log_crit(__func__, "failed to request buffers (chan=%p, num_buffers was %u) ret=%d, errno=%d",
+			 chan, num_buffers, err, errno);
 		return err;
 	}
 
@@ -569,4 +582,3 @@ int liberio_chan_stop_streaming(struct liberio_chan *chan)
 
 	return liberio_ioctl(chan->fd, USRPIOC_STREAMOFF, (void *)type);
 }
-
