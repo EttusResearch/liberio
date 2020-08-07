@@ -1,3 +1,15 @@
+Liberio -- A DMA Library for embedded USRP devices
+==================================================
+
+Liberio is a library for doing DMA transfers between PL and PS on our
+Zynq-based platforms.
+It is used by UHD 3.15 and below. Starting with UHD 4.0, we no longer use
+Liberio for DMA transports.
+
+
+Installation
+------------
+
 Dependencies:
 
 - libudev
